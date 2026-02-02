@@ -99,6 +99,19 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      {/* Footer */}
+      <footer style={{ padding: "48px 16px", borderTop: "1px solid #27272a" }}>
+        <div style={{ maxWidth: "1152px", margin: "0 auto", display: "flex", flexDirection: "column", alignItems: "center", gap: "16px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <div style={{ width: "24px", height: "24px", borderRadius: "6px", background: "linear-gradient(135deg, #6366f1, #9333ea)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <span style={{ color: "white", fontWeight: "bold", fontSize: "12px" }}>K</span>
+            </div>
+            <span style={{ fontWeight: 500 }}>Kin</span>
+          </div>
+          <p style={{ fontSize: "14px", color: "#71717a" }}>© 2026 Kin. All rights reserved.</p>
+        </div>
+      </footer>
     </div>
   );
 }
