@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { supabase } from "@/lib/supabase"
+import { createClient } from "@/lib/supabase"
 
 export default function SignUpPage() {
   const router = useRouter()
@@ -23,6 +23,7 @@ export default function SignUpPage() {
     setError("")
 
     try {
+      const supabase = createClient()
       const { data, error } = await supabase.auth.signUp({
         email,
         password,

@@ -6,9 +6,7 @@ import { useRouter } from "next/navigation"
 import {
   Sparkles,
   MessageCircle,
-  Phone,
   CheckCircle2,
-  XCircle,
   Clock,
   Settings,
   LogOut,
@@ -21,7 +19,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { QRCodeDisplay } from "@/components/qr-code"
-import { supabase } from "@/lib/supabase"
+import { createClient } from "@/lib/supabase"
 
 interface User {
   id: string
@@ -40,7 +38,22 @@ interface Connection {
 export default function DashboardPage() {
   const router = useRouter()
   const [user, setUser] = useState<User | null>(null)
-  const [connections, setConnections] = useState<Connection[]>([])
+  const [connections, setConnections] = useState<Connection[]>([
+    {
+      id: "1",
+      type: "whatsapp",
+      status: "pending",
+      phone_number: null,
+      created_at: new Date().toISOString(),
+    },
+    {
+      id: "2",
+      type: "telegram",
+      status: "disconnected",
+      phone_number: null,
+      created_at: new Date().toISOString(),
+    },
+  ])
   const [loading, setLoading] = useState(true)
   const [whatsappQR, setWhatsappQR] = useState("")
 
@@ -50,7 +63,9 @@ export default function DashboardPage() {
 
   const checkUser = async () => {
     try {
+      const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
+      
       if (!user) {
         router.push("/auth/sign-in")
         return
@@ -77,25 +92,11 @@ export default function DashboardPage() {
 
   const fetchConnections = async (userId: string) => {
     // Mock data for now
-    setConnections([
-      {
-        id: "1",
-        type: "whatsapp",
-        status: "pending",
-        phone_number: null,
-        created_at: new Date().toISOString(),
-      },
-      {
-        id: "2",
-        type: "telegram",
-        status: "disconnected",
-        phone_number: null,
-        created_at: new Date().toISOString(),
-      },
-    ])
+    console.log("Fetching connections for user:", userId)
   }
 
   const handleSignOut = async () => {
+    const supabase = createClient()
     await supabase.auth.signOut()
     router.push("/")
   }
