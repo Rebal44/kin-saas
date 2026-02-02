@@ -1,0 +1,147 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, staging]
+  pull_request:
+    branches: [main, staging]
+
+env:
+  NODE_VERSION: '20'
+  NEXT_TELEMETRY_DISABLED: 1
+
+jobs:
+  lint-and-test:
+    name: Lint & Test
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: |
+            kin/package-lock.json
+            kin-backend/package-lock.json
+
+      # Frontend checks
+      - name: Install frontend dependencies
+        run: |
+          cd kin
+          npm ci
+
+      - name: Lint frontend
+        run: |
+          cd kin
+          npm run lint
+        continue-on-error: true
+
+      - name: Type check frontend
+        run: |
+          cd kin
+          npm run type-check
+        continue-on-error: true
+
+      - name: Build frontend
+        run: |
+          cd kin
+          npm run build
+        env:
+          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
+          NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY }}
+
+      # Backend checks
+      - name: Install backend dependencies
+        run: |
+          cd kin-backend
+          npm ci
+
+      - name: Lint backend
+        run: |
+          cd kin-backend
+          npm run lint
+        continue-on-error: true
+
+      - name: Test backend
+        run: |
+          cd kin-backend
+          npm test
+        continue-on-error: true
+
+      - name: Build backend
+        run: |
+          cd kin-backend
+          npm run build
+
+  deploy-staging:
+    name: Deploy to Staging
+    needs: lint-and-test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/staging'
+    environment:
+      name: staging
+      url: https://staging.kin-saas.com
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Deploy to Vercel (Staging)
+        uses: vercel/action-deploy@v1
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID_STAGING }}
+          vercel-args: '--prod'
+
+      - name: Run database migrations (Staging)
+        run: |
+          npm install -g supabase
+          supabase link --project-ref ${{ secrets.SUPABASE_PROJECT_REF_STAGING }}
+          supabase db push
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+
+  deploy-production:
+    name: Deploy to Production
+    needs: lint-and-test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    environment:
+      name: production
+      url: https://kin-saas.com
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Deploy to Vercel (Production)
+        uses: vercel/action-deploy@v1
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID_PROD }}
+          vercel-args: '--prod'
+
+      - name: Run database migrations (Production)
+        run: |
+          npm install -g supabase
+          supabase link --project-ref ${{ secrets.SUPABASE_PROJECT_REF_PROD }}
+          supabase db push
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+
+      - name: Notify deployment
+        uses: 8398a7/action-slack@v3
+        if: always()
+        with:
+          status: ${{ job.status }}
+          channel: '#deployments'
+          fields: repo,message,commit,author,action,eventName,ref,workflow
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        continue-on-error: true

@@ -1,0 +1,114 @@
+{
+  "version": 2,
+  "name": "kin-saas",
+  "builds": [
+    {
+      "src": "kin/package.json",
+      "use": "@vercel/next",
+      "config": {
+        "rootDirectory": "kin",
+        "framework": "nextjs"
+      }
+    },
+    {
+      "src": "kin-backend/src/index.ts",
+      "use": "@vercel/node",
+      "config": {
+        "rootDirectory": "kin-backend",
+        "includeFiles": "kin-backend/dist/**"
+      }
+    }
+  ],
+  "routes": [
+    {
+      "src": "/api/webhooks/(.*)",
+      "dest": "kin-backend/dist/index.js"
+    },
+    {
+      "src": "/api/(.*)",
+      "dest": "kin-backend/dist/index.js"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "kin/$1"
+    }
+  ],
+  "env": {
+    "NODE_ENV": "production"
+  },
+  "build": {
+    "env": {
+      "NEXT_TELEMETRY_DISABLED": "1"
+    }
+  },
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "DENY"
+        },
+        {
+          "key": "X-XSS-Protection",
+          "value": "1; mode=block"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        },
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline' https://js.stripe.com https://clerk.kin-saas.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https: blob:; font-src 'self'; connect-src 'self' https://api.clerk.com https://api.stripe.com https://*.supabase.co https://*.vercel-insights.com; frame-src https://js.stripe.com https://hooks.stripe.com;"
+        },
+        {
+          "key": "Strict-Transport-Security",
+          "value": "max-age=31536000; includeSubDomains; preload"
+        }
+      ]
+    }
+  ],
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "https://api.kin-saas.com/:path*"
+    }
+  ],
+  "redirects": [
+    {
+      "source": "/dashboard",
+      "destination": "/app",
+      "permanent": true
+    },
+    {
+      "source": "/login",
+      "destination": "/sign-in",
+      "permanent": true
+    },
+    {
+      "source": "/signup",
+      "destination": "/sign-up",
+      "permanent": true
+    }
+  ],
+  "crons": [
+    {
+      "path": "/api/cron/sync-subscriptions",
+      "schedule": "0 0 * * *"
+    },
+    {
+      "path": "/api/cron/cleanup-expired-trials",
+      "schedule": "0 2 * * *"
+    }
+  ],
+  "git": {
+    "deploymentEnabled": {
+      "main": true,
+      "staging": true
+    }
+  }
+}
