@@ -1,10 +1,3 @@
-import type { Metadata } from "next";
-
-export const metadata: Metadata = {
-  title: "Kin - The Easy Button for AI",
-  description: "Your personal AI assistant. Just text. It does everything else.",
-};
-
 export default function Home() {
   return (
     <div style={{ minHeight: "100vh", backgroundColor: "#0a0a0a", color: "#fafafa", fontFamily: "system-ui, -apple-system, sans-serif" }}>
@@ -85,7 +78,7 @@ export default function Home() {
           <p style={{ fontSize: "18px", color: "#a1a1aa", marginBottom: "48px" }}>One plan. Everything included.</p>
 
           <div style={{ padding: "32px", borderRadius: "16px", backgroundColor: "#18181b", border: "1px solid #27272a", textAlign: "left" }}>
-            <div style={{ textAlign: "center", marginBottom: "32px" }}
+            <div style={{ textAlign: "center", marginBottom: "32px" }}>
               <p style={{ fontSize: "14px", color: "#71717a", marginBottom: "8px" }}>Kin Unlimited</p>
               <div style={{ display: "flex", alignItems: "baseline", justifyContent: "center", gap: "8px" }}>
                 <span style={{ fontSize: "48px", fontWeight: 700 }}>$29</span>
@@ -93,7 +86,7 @@ export default function Home() {
               </div>
             </div>
 
-            <ul style={{ listStyle: "none", padding: 0, margin: "0 0 32px 0", space: "16px" }}>
+            <ul style={{ listStyle: "none", padding: 0, margin: "0 0 32px 0" }}>
               {[
                 "Unlimited messages",
                 "WhatsApp & Telegram access",
