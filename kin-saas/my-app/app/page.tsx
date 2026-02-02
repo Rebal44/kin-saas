@@ -1,8 +1,7 @@
 export default function Home() {
   return (
     <div style={{ minHeight: "100vh", backgroundColor: "#0a0a0a", color: "#fafafa", fontFamily: "system-ui, -apple-system, sans-serif" }}>
-      {/* Navigation */}
-      <nav style={{ position: "fixed", top: 0, width: "100%", borderBottom: "1px solid #27272a", backgroundColor: "rgba(10,10,10,0.8)", backdropFilter: "blur(12px)", zIndex: 50 }}>
+      <nav style={{ position: "fixed", top: 0, width: "100%", borderBottom: "1px solid #27272a", backgroundColor: "rgba(10,10,10,0.8)", zIndex: 50 }}>
         <div style={{ maxWidth: "1280px", margin: "0 auto", padding: "0 16px", height: "64px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
             <div style={{ width: "32px", height: "32px", borderRadius: "8px", background: "linear-gradient(135deg, #6366f1, #9333ea)", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -14,7 +13,6 @@ export default function Home() {
         </div>
       </nav>
 
-      {/* Hero Section */}
       <section style={{ paddingTop: "128px", paddingBottom: "80px", paddingLeft: "16px", paddingRight: "16px", textAlign: "center" }}>
         <div style={{ maxWidth: "1024px", margin: "0 auto" }}>
           <div style={{ display: "inline-flex", alignItems: "center", gap: "8px", padding: "8px 16px", borderRadius: "9999px", backgroundColor: "#18181b", border: "1px solid #27272a", marginBottom: "32px" }}>
@@ -27,18 +25,17 @@ export default function Home() {
           </h1>
 
           <p style={{ fontSize: "20px", color: "#a1a1aa", maxWidth: "576px", margin: "0 auto 32px" }}>
-            Text Kin. It books your flights, calls your doctor, answers your emails, and manages your life. No apps. No learning. Just help.
+            Text Kin. It books your flights, calls your doctor, answers your emails, and manages your life.
           </p>
 
-          <a href="#pricing" style={{ display: "inline-flex", alignItems: "center", gap: "8px", padding: "16px 32px", borderRadius: "12px", background: "linear-gradient(135deg, #4f46e5, #9333ea)", color: "white", textDecoration: "none", fontWeight: 500 }}>
-            Start Your Free Trial →
+          <a href="#pricing" style={{ display: "inline-block", padding: "16px 32px", borderRadius: "12px", background: "linear-gradient(135deg, #4f46e5, #9333ea)", color: "white", textDecoration: "none", fontWeight: 500 }}>
+            Start Your Free Trial
           </a>
 
           <p style={{ fontSize: "14px", color: "#71717a", marginTop: "16px" }}>14 days free • No credit card required</p>
         </div>
       </section>
 
-      {/* Features Section */}
       <section id="features" style={{ padding: "80px 16px", borderTop: "1px solid #27272a" }}>
         <div style={{ maxWidth: "1152px", margin: "0 auto" }}>
           <div style={{ textAlign: "center", marginBottom: "64px" }}>
@@ -46,29 +43,28 @@ export default function Home() {
             <p style={{ fontSize: "18px", color: "#a1a1aa" }}>One text. Infinite capabilities.</p>
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: "32px" }}>
-            <div style={{ padding: "32px", borderRadius: "16px", backgroundColor: "rgba(24,24,27,0.5)", border: "1px solid #27272a" }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "32px", justifyContent: "center" }}>
+            <div style={{ flex: "1 1 300px", maxWidth: "360px", padding: "32px", borderRadius: "16px", backgroundColor: "rgba(24,24,27,0.5)", border: "1px solid #27272a" }}>
               <div style={{ fontSize: "32px", marginBottom: "16px" }}>🖱️</div>
               <h3 style={{ fontSize: "20px", fontWeight: 600, marginBottom: "12px" }}>It has Hands</h3>
-              <p style={{ color: "#a1a1aa", lineHeight: 1.6 }}>Kin can click, type, and navigate any website. Book flights on Expedia. Shop on Amazon. Fill out forms.</p>
+              <p style={{ color: "#a1a1aa", lineHeight: 1.6 }}>Kin can click, type, and navigate any website. Book flights on Expedia. Shop on Amazon.</p>
             </div>
 
-            <div style={{ padding: "32px", borderRadius: "16px", backgroundColor: "rgba(24,24,27,0.5)", border: "1px solid #27272a" }}>
+            <div style={{ flex: "1 1 300px", maxWidth: "360px", padding: "32px", borderRadius: "16px", backgroundColor: "rgba(24,24,27,0.5)", border: "1px solid #27272a" }}>
               <div style={{ fontSize: "32px", marginBottom: "16px" }}>📞</div>
               <h3 style={{ fontSize: "20px", fontWeight: 600, marginBottom: "12px" }}>It has a Voice</h3>
-              <p style={{ color: "#a1a1aa", lineHeight: 1.6 }}>Kin makes real phone calls. It calls restaurants for reservations, doctors for appointments, and customer service.</p>
+              <p style={{ color: "#a1a1aa", lineHeight: 1.6 }}>Kin makes real phone calls. It calls restaurants for reservations, doctors for appointments.</p>
             </div>
 
-            <div style={{ padding: "32px", borderRadius: "16px", backgroundColor: "rgba(24,24,27,0.5)", border: "1px solid #27272a" }}>
+            <div style={{ flex: "1 1 300px", maxWidth: "360px", padding: "32px", borderRadius: "16px", backgroundColor: "rgba(24,24,27,0.5)", border: "1px solid #27272a" }}>
               <div style={{ fontSize: "32px", marginBottom: "16px" }}>🔑</div>
               <h3 style={{ fontSize: "20px", fontWeight: 600, marginBottom: "12px" }}>It has Keys</h3>
-              <p style={{ color: "#a1a1aa", lineHeight: 1.6 }}>Kin connects to your Gmail, Calendar, and apps securely. It reads emails, schedules meetings, and manages your digital life.</p>
+              <p style={{ color: "#a1a1aa", lineHeight: 1.6 }}>Kin connects to your Gmail, Calendar, and apps securely. It reads emails and schedules meetings.</p>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Pricing Section */}
       <section id="pricing" style={{ padding: "80px 16px", borderTop: "1px solid #27272a" }}>
         <div style={{ maxWidth: "448px", margin: "0 auto", textAlign: "center" }}>
           <h2 style={{ fontSize: "36px", fontWeight: 700, marginBottom: "16px" }}>Simple pricing</h2>
@@ -77,27 +73,20 @@ export default function Home() {
           <div style={{ padding: "32px", borderRadius: "16px", backgroundColor: "#18181b", border: "1px solid #27272a", textAlign: "left" }}>
             <div style={{ textAlign: "center", marginBottom: "32px" }}>
               <p style={{ fontSize: "14px", color: "#71717a", marginBottom: "8px" }}>Kin Unlimited</p>
-              <div style={{ display: "flex", alignItems: "baseline", justifyContent: "center", gap: "8px" }}>
+              <div>
                 <span style={{ fontSize: "48px", fontWeight: 700 }}>$29</span>
                 <span style={{ color: "#71717a" }}>/month</span>
               </div>
             </div>
 
-            <ul style={{ listStyle: "none", margin: "0 0 32px 0", padding: 0 }}>
-              {[
-                "Unlimited messages",
-                "WhatsApp & Telegram access",
-                "Web browsing & automation",
-                "Phone calls (fair use)",
-                "Gmail & Calendar integration",
-                "Priority support",
-              ].map((feature) => (
-                <li key={feature} style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "12px", color: "#d4d4d8" }}>
-                  <span style={{ color: "#22c55e" }}>✓</span>
-                  {feature}
-                </li>
-              ))}
-            </ul>
+            <div style={{ marginBottom: "32px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "12px", color: "#d4d4d8" }}><span style={{ color: "#22c55e" }}>✓</span>Unlimited messages</div>
+              <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "12px", color: "#d4d4d8" }}><span style={{ color: "#22c55e" }}>✓</span>WhatsApp & Telegram access</div>
+              <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "12px", color: "#d4d4d8" }}><span style={{ color: "#22c55e" }}>✓</span>Web browsing & automation</div>
+              <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "12px", color: "#d4d4d8" }}><span style={{ color: "#22c55e" }}>✓</span>Phone calls (fair use)</div>
+              <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "12px", color: "#d4d4d8" }}><span style={{ color: "#22c55e" }}>✓</span>Gmail & Calendar integration</div>
+              <div style={{ display: "flex", alignItems: "center", gap: "12px", color: "#d4d4d8" }}><span style={{ color: "#22c55e" }}>✓</span>Priority support</div>
+            </div>
 
             <button style={{ width: "100%", padding: "16px", borderRadius: "12px", background: "linear-gradient(135deg, #4f46e5, #9333ea)", color: "white", border: "none", fontSize: "16px", fontWeight: 500, cursor: "pointer" }}>
               Start Free Trial
@@ -107,7 +96,6 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Footer */}
       <footer style={{ padding: "48px 16px", borderTop: "1px solid #27272a" }}>
         <div style={{ maxWidth: "1152px", margin: "0 auto", display: "flex", flexDirection: "column", alignItems: "center", gap: "16px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
