@@ -37,6 +37,36 @@ export default function Home() {
           <p style={{ fontSize: "14px", color: "#71717a", marginTop: "16px" }}>14 days free • No credit card required</p>
         </div>
       </section>
+
+      {/* Features Section */}
+      <section id="features" style={{ padding: "80px 16px", borderTop: "1px solid #27272a" }}>
+        <div style={{ maxWidth: "1152px", margin: "0 auto" }}>
+          <div style={{ textAlign: "center", marginBottom: "64px" }}>
+            <h2 style={{ fontSize: "36px", fontWeight: 700, marginBottom: "16px" }}>Kin has everything</h2>
+            <p style={{ fontSize: "18px", color: "#a1a1aa" }}>One text. Infinite capabilities.</p>
+          </div>
+
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "32px", justifyContent: "center" }}>
+            <div style={{ flex: "1 1 300px", maxWidth: "360px", padding: "32px", borderRadius: "16px", backgroundColor: "rgba(24,24,27,0.5)", border: "1px solid #27272a" }}>
+              <div style={{ fontSize: "32px", marginBottom: "16px" }}>🖱️</div>
+              <h3 style={{ fontSize: "20px", fontWeight: 600, marginBottom: "12px" }}>It has Hands</h3>
+              <p style={{ color: "#a1a1aa", lineHeight: 1.6 }}>Kin can click, type, and navigate any website. Book flights on Expedia. Shop on Amazon.</p>
+            </div>
+
+            <div style={{ flex: "1 1 300px", maxWidth: "360px", padding: "32px", borderRadius: "16px", backgroundColor: "rgba(24,24,27,0.5)", border: "1px solid #27272a" }}>
+              <div style={{ fontSize: "32px", marginBottom: "16px" }}>📞</div>
+              <h3 style={{ fontSize: "20px", fontWeight: 600, marginBottom: "12px" }}>It has a Voice</h3>
+              <p style={{ color: "#a1a1aa", lineHeight: 1.6 }}>Kin makes real phone calls. It calls restaurants for reservations, doctors for appointments.</p>
+            </div>
+
+            <div style={{ flex: "1 1 300px", maxWidth: "360px", padding: "32px", borderRadius: "16px", backgroundColor: "rgba(24,24,27,0.5)", border: "1px solid #27272a" }}>
+              <div style={{ fontSize: "32px", marginBottom: "16px" }}>🔑</div>
+              <h3 style={{ fontSize: "20px", fontWeight: 600, marginBottom: "12px" }}>It has Keys</h3>
+              <p style={{ color: "#a1a1aa", lineHeight: 1.6 }}>Kin connects to your Gmail, Calendar, and apps securely. It reads emails and schedules meetings.</p>
+            </div>
+          </div>
+        </div>
+      </section>
     </div>
   );
 }
