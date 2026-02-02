@@ -1,8 +1,13 @@
-import { Request, Response, NextFunction } from 'express';
-import { requireAuth as clerkRequireAuth, getAuth } from '@clerk/express';
-import { supabase } from '../db/client';
+/**
+ * Authentication Middleware
+ */
 
-// Extend Express Request type
+import { Request, Response, NextFunction } from 'express';
+import { createClerkClient } from '@clerk/clerk-sdk-node';
+
+const clerk = createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY });
+
+// Extend Express Request type to include user
 declare global {
   namespace Express {
     interface Request {
@@ -10,128 +15,98 @@ declare global {
         id: string;
         email: string;
         subscriptionStatus?: string;
-      };
-      id: string;
-      rateLimit?: {
-        limit: number;
-        current: number;
-        remaining: number;
-        resetTime?: Date;
+        isAdmin?: boolean;
       };
     }
   }
 }
 
-// Clerk authentication middleware
-export function requireAuth() {
-  return clerkRequireAuth();
-}
-
-// Optional auth middleware (sets user if authenticated, continues regardless)
-export async function optionalAuth(req: Request, res: Response, next: NextFunction) {
+/**
+ * Middleware to authenticate requests using Clerk
+ */
+export async function authenticateRequest(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
   try {
-    const auth = getAuth(req);
+    const authHeader = req.headers.authorization;
     
-    if (auth?.userId) {
-      // Get user from Supabase
-      const { data: user, error } = await supabase
-        .from('users')
-        .select('id, email, subscription_status')
-        .eq('clerk_id', auth.userId)
-        .single();
-
-      if (!error && user) {
-        req.user = {
-          id: auth.userId,
-          email: user.email,
-          subscriptionStatus: user.subscription_status
-        };
-      }
+    if (!authHeader) {
+      res.status(401).json({ error: 'No authorization header' });
+      return;
     }
-  } catch (error) {
-    // Continue without user
-  }
-  
-  next();
-}
-
-// Require active subscription
-export function requireSubscription(req: Request, res: Response, next: NextFunction) {
-  if (!req.user) {
-    return res.status(401).json({ error: 'Authentication required' });
-  }
-
-  if (req.user.subscriptionStatus !== 'active' && req.user.subscriptionStatus !== 'trialing') {
-    return res.status(403).json({ 
-      error: 'Active subscription required',
-      upgradeUrl: '/pricing'
-    });
-  }
-
-  next();
-}
-
-// Check if user is admin
-export function requireAdmin(req: Request, res: Response, next: NextFunction) {
-  if (!req.user) {
-    return res.status(401).json({ error: 'Authentication required' });
-  }
-
-  // Check admin list (could be stored in env or database)
-  const adminIds = process.env.ADMIN_USER_IDS?.split(',') || [];
-  
-  if (!adminIds.includes(req.user.id)) {
-    return res.status(403).json({ error: 'Admin access required' });
-  }
-
-  next();
-}
-
-// API key authentication for bot webhooks
-export function requireApiKey(req: Request, res: Response, next: NextFunction) {
-  const apiKey = req.headers['x-api-key'] as string;
-
-  if (!apiKey) {
-    return res.status(401).json({ error: 'API key required' });
-  }
-
-  // Validate API key
-  const validApiKeys = [
-    process.env.TELEGRAM_WEBHOOK_SECRET,
-    process.env.WHATSAPP_WEBHOOK_SECRET
-  ].filter(Boolean);
-
-  if (!validApiKeys.includes(apiKey)) {
-    return res.status(401).json({ error: 'Invalid API key' });
-  }
-
-  next();
-}
-
-// Bot platform authentication
-export function requireBotAuth(platform: 'telegram' | 'whatsapp') {
-  return (req: Request, res: Response, next: NextFunction) => {
-    const token = platform === 'telegram' 
-      ? req.headers['x-telegram-bot-api-secret-token']
-      : req.headers['x-whatsapp-webhook-token'];
-
-    const expectedToken = platform === 'telegram'
-      ? process.env.TELEGRAM_WEBHOOK_SECRET
-      : process.env.WHATSAPP_WEBHOOK_SECRET;
-
-    if (token !== expectedToken) {
-      return res.status(401).json({ error: 'Invalid bot authentication' });
+    
+    const [type, token] = authHeader.split(' ');
+    
+    if (type !== 'Bearer' || !token) {
+      res.status(401).json({ error: 'Invalid authorization format' });
+      return;
     }
-
+    
+    // Verify token with Clerk
+    const session = await clerk.sessions.verifyToken(token);
+    
+    if (!session) {
+      res.status(401).json({ error: 'Invalid token' });
+      return;
+    }
+    
+    // Get user details
+    const user = await clerk.users.getUser(session.sub);
+    
+    req.user = {
+      id: user.id,
+      email: user.emailAddresses[0]?.emailAddress || '',
+    };
+    
     next();
-  };
+  } catch (error) {
+    console.error('Auth error:', error);
+    res.status(401).json({ error: 'Authentication failed' });
+  }
 }
 
-export default {
-  requireAuth,
-  optionalAuth,
-  requireSubscription,
-  requireAdmin,
-  requireApiKey,
-  requireBotAuth
-};
+/**
+ * Middleware to require active subscription
+ */
+export function requireSubscription(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): void {
+  if (!req.user) {
+    res.status(401).json({ error: 'Authentication required' });
+    return;
+  }
+  
+  const allowedStatuses = ['active', 'trialing'];
+  
+  if (!req.user.subscriptionStatus || !allowedStatuses.includes(req.user.subscriptionStatus)) {
+    res.status(403).json({ error: 'Active subscription required' });
+    return;
+  }
+  
+  next();
+}
+
+/**
+ * Middleware to require admin access
+ */
+export function requireAdmin(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): void {
+  if (!req.user) {
+    res.status(401).json({ error: 'Authentication required' });
+    return;
+  }
+  
+  if (!req.user.isAdmin) {
+    res.status(403).json({ error: 'Admin access required' });
+    return;
+  }
+  
+  next();
+}

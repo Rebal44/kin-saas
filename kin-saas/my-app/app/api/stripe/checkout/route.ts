@@ -1,30 +1,49 @@
-import { NextResponse } from "next/server";
-import Stripe from "stripe";
+import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
+import { cookies } from 'next/headers'
+import { NextResponse } from 'next/server'
+import { stripe, createCheckoutSession } from '@/lib/stripe'
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: "2024-12-18.acacia",
-});
-
-export async function POST() {
+export async function POST(request: Request) {
   try {
-    const session = await stripe.checkout.sessions.create({
-      line_items: [
-        {
-          price: "price_1ABC123", // TODO: Create actual price in Stripe
-          quantity: 1,
-        },
-      ],
-      mode: "subscription",
-      success_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard?success=true`,
-      cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/`,
-    });
+    const cookieStore = cookies()
+    const supabase = createRouteHandlerClient({ cookies: () => cookieStore })
 
-    return NextResponse.json({ url: session.url });
-  } catch (error) {
-    console.error("Stripe error:", error);
+    const { data: { user } } = await supabase.auth.getUser()
+
+    if (!user) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      )
+    }
+
+    // Create or retrieve Stripe customer
+    let customerId = user.user_metadata?.stripe_customer_id
+
+    if (!customerId) {
+      const customer = await stripe.customers.create({
+        email: user.email!,
+        metadata: {
+          user_id: user.id,
+        },
+      })
+      customerId = customer.id
+
+      // Save customer ID to user metadata
+      await supabase.auth.updateUser({
+        data: { stripe_customer_id: customerId },
+      })
+    }
+
+    // Create checkout session
+    const session = await createCheckoutSession(customerId)
+
+    return NextResponse.json({ url: session.url })
+  } catch (error: any) {
+    console.error('Checkout error:', error)
     return NextResponse.json(
-      { error: "Failed to create checkout session" },
+      { error: error.message },
       { status: 500 }
-    );
+    )
   }
 }

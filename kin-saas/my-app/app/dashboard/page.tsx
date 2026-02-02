@@ -1,206 +1,336 @@
-"use client";
+"use client"
 
-import { useState } from "react";
-import { MessageCircle, Phone, Key, Copy, Check, LogOut } from "lucide-react";
-import Link from "next/link";
+import { useEffect, useState } from "react"
+import Link from "next/link"
+import { useRouter } from "next/navigation"
+import {
+  Sparkles,
+  MessageCircle,
+  Phone,
+  CheckCircle2,
+  XCircle,
+  Clock,
+  Settings,
+  LogOut,
+  ChevronRight,
+  CreditCard,
+} from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Separator } from "@/components/ui/separator"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { QRCodeDisplay } from "@/components/qr-code"
+import { supabase } from "@/lib/supabase"
 
-export default function Dashboard() {
-  const [copied, setCopied] = useState(false);
-  const [whatsappConnected, setWhatsappConnected] = useState(false);
-  const [telegramConnected, setTelegramConnected] = useState(false);
+interface User {
+  id: string
+  email: string
+  subscription_status: string | null
+}
 
-  const handleCopy = () => {
-    navigator.clipboard.writeText("https://kin.ai/start");
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
+interface Connection {
+  id: string
+  type: "whatsapp" | "telegram"
+  status: "pending" | "connected" | "disconnected"
+  phone_number: string | null
+  created_at: string
+}
+
+export default function DashboardPage() {
+  const router = useRouter()
+  const [user, setUser] = useState<User | null>(null)
+  const [connections, setConnections] = useState<Connection[]>([])
+  const [loading, setLoading] = useState(true)
+  const [whatsappQR, setWhatsappQR] = useState("")
+
+  useEffect(() => {
+    checkUser()
+  }, [])
+
+  const checkUser = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        router.push("/auth/sign-in")
+        return
+      }
+
+      setUser({
+        id: user.id,
+        email: user.email || "",
+        subscription_status: null,
+      })
+
+      // Generate WhatsApp QR code
+      setWhatsappQR(`https://wa.me/1234567890?text=CONNECT:${user.id}`)
+
+      // Fetch connections
+      fetchConnections(user.id)
+    } catch (error) {
+      console.error("Error checking user:", error)
+      router.push("/auth/sign-in")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const fetchConnections = async (userId: string) => {
+    // Mock data for now
+    setConnections([
+      {
+        id: "1",
+        type: "whatsapp",
+        status: "pending",
+        phone_number: null,
+        created_at: new Date().toISOString(),
+      },
+      {
+        id: "2",
+        type: "telegram",
+        status: "disconnected",
+        phone_number: null,
+        created_at: new Date().toISOString(),
+      },
+    ])
+  }
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut()
+    router.push("/")
+  }
+
+  const handleSubscribe = async () => {
+    try {
+      const response = await fetch("/api/stripe/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      })
+      const { url } = await response.json()
+      if (url) window.location.href = url
+    } catch (error) {
+      console.error("Error creating checkout:", error)
+    }
+  }
+
+  const getTelegramLink = () => {
+    return `https://t.me/KinAssistantBot?start=${user?.id}`
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-pulse">Loading...</div>
+      </div>
+    )
+  }
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-zinc-50">
+    <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="border-b border-zinc-800/50 bg-[#0a0a0a]/80 backdrop-blur-md">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
-              <span className="text-white font-bold text-sm">K</span>
-            </div>
-            <span className="font-semibold">Kin</span>
-          </div>
-
-          <div className="flex items-center gap-4">
-            <span className="px-3 py-1 rounded-full bg-green-500/10 text-green-400 text-sm">
-              ● Active
-            </span>
-            <Link href="/" className="text-zinc-400 hover:text-zinc-200">
-              <LogOut className="w-5 h-5" />
+      <header className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="flex h-16 items-center justify-between">
+            <Link href="/" className="flex items-center gap-2">
+              <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
+                <Sparkles className="h-5 w-5 text-white" />
+              </div>
+              <span className="text-xl font-semibold">Kin</span>
             </Link>
+
+            <div className="flex items-center gap-4">
+              <Avatar className="h-8 w-8">
+                <AvatarImage src={`https://avatar.vercel.sh/${user?.email}`} />
+                <AvatarFallback>{user?.email?.charAt(0).toUpperCase()}</AvatarFallback>
+              </Avatar>
+              <Button variant="ghost" size="icon" onClick={handleSignOut}>
+                <LogOut className="h-5 w-5" />
+              </Button>
+            </div>
           </div>
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
         {/* Welcome */}
-        <div className="mb-12">
-          <h1 className="text-3xl font-bold mb-2">Welcome back</h1>
-          <p className="text-zinc-400">Your AI assistant is ready to help.</p>
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold">Welcome back</h1>
+          <p className="text-muted-foreground">Manage your connections and settings</p>
         </div>
 
-        {/* Connection Cards */}
-        <div className="grid md:grid-cols-2 gap-6 mb-12">
-          {/* WhatsApp */}
-          <div className="p-6 rounded-2xl bg-zinc-900/50 border border-zinc-800">
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-green-500/20 flex items-center justify-center">
-                  <MessageCircle className="w-5 h-5 text-green-400" />
+        <div className="grid lg:grid-cols-3 gap-8">
+          {/* Main Content */}
+          <div className="lg:col-span-2 space-y-6">
+            {/* Subscription Status */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                      <CreditCard className="h-5 w-5 text-primary" />
+                    </div>
+                    <div>
+                      <CardTitle>Subscription</CardTitle>
+                      <CardDescription>Manage your plan</CardDescription>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {user?.subscription_status === "active" ? (
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-green-100 px-3 py-1 text-sm font-medium text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                        <CheckCircle2 className="h-4 w-4" />
+                        Active
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-100 px-3 py-1 text-sm font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+                        <Clock className="h-4 w-4" />
+                        Trial
+                      </span>
+                    )}
+                  </div>
                 </div>
-                <div>
-                  <p className="font-medium">WhatsApp</p>
-                  <p className="text-sm text-zinc-500">{whatsappConnected ? "Connected" : "Not connected"}</p>
-                </div>
-              </div>
-              <span className={`px-3 py-1 rounded-full text-sm ${whatsappConnected ? "bg-green-500/10 text-green-400" : "bg-zinc-800 text-zinc-500"}`}>
-                {whatsappConnected ? "Active" : "Setup"}
-              </span>
-            </div>
+              </CardHeader>
+              <CardContent>
+                {user?.subscription_status !== "active" ? (
+                  <div className="flex items-center justify-between p-4 rounded-lg bg-muted">
+                    <div>
+                      <p className="font-medium">Kin Pro</p>
+                      <p className="text-sm text-muted-foreground">$29/month - Full access</p>
+                    </div>
+                    <Button onClick={handleSubscribe}>Subscribe</Button>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between p-4 rounded-lg bg-muted">
+                    <p className="text-sm text-muted-foreground">You're subscribed to Kin Pro</p>
+                    <Button variant="outline" onClick={handleSubscribe}>Manage</Button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
 
-            {!whatsappConnected ? (
-              <div className="text-center">
-                <div className="w-48 h-48 mx-auto mb-4 bg-zinc-800 rounded-xl flex items-center justify-center">
-                  <p className="text-zinc-500 text-sm">QR Code will appear here</p>
-                </div>
-                <p className="text-sm text-zinc-400 mb-4">Scan with WhatsApp to connect</p>
-                <button
-                  onClick={() => setWhatsappConnected(true)}
-                  className="px-4 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 transition"
-                >
-                  Simulate Connection
-                </button>
-              </div>
-            ) : (
-              <div className="flex items-center justify-between p-4 rounded-xl bg-green-500/5 border border-green-500/20">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-zinc-800 flex items-center justify-center">
-                    <span className="text-lg">👤</span>
-                  </div>
-                  <div>
-                    <p className="font-medium">Your Phone</p>
-                    <p className="text-sm text-zinc-500">+1 (555) 123-4567</p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setWhatsappConnected(false)}
-                  className="text-red-400 hover:text-red-300 text-sm"
-                >
-                  Disconnect
-                </button>
-              </div>
-            )}
+            {/* Connections */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Your Connections</CardTitle>
+                <CardDescription>Connect Kin to your messaging apps</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Tabs defaultValue="whatsapp" className="w-full">
+                  <TabsList className="grid w-full grid-cols-2">
+                    <TabsTrigger value="whatsapp">WhatsApp</TabsTrigger>
+                    <TabsTrigger value="telegram">Telegram</TabsTrigger>
+                  </TabsList>
+
+                  <TabsContent value="whatsapp" className="mt-6">
+                    {connections.find((c) => c.type === "whatsapp")?.status === "connected" ? (
+                      <div className="flex items-center gap-3 p-4 rounded-lg bg-green-500/10">
+                        <CheckCircle2 className="h-5 w-5 text-green-500" />
+                        <div className="flex-1">
+                          <p className="font-medium">Connected</p>
+                          <p className="text-sm text-muted-foreground">
+                            {connections.find((c) => c.type === "whatsapp")?.phone_number}
+                          </p>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        <p className="text-sm text-muted-foreground">
+                          Scan this QR code with WhatsApp to connect
+                        </p>
+                        <div className="flex justify-center">
+                          <QRCodeDisplay
+                            value={whatsappQR}
+                            description="Open WhatsApp → Settings → Linked Devices → Link a Device"
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </TabsContent>
+
+                  <TabsContent value="telegram" className="mt-6">
+                    <div className="space-y-4">
+                      <p className="text-sm text-muted-foreground">
+                        Click the button below to connect with our Telegram bot
+                      </p>
+                      <Button
+                        className="w-full"
+                        onClick={() => window.open(getTelegramLink(), "_blank")}
+                      >
+                        <MessageCircle className="mr-2 h-4 w-4" />
+                        Open Telegram Bot
+                      </Button>
+                      
+                      {connections.find((c) => c.type === "telegram")?.status === "connected" && (
+                        <div className="flex items-center gap-3 p-4 rounded-lg bg-green-500/10">
+                          <CheckCircle2 className="h-5 w-5 text-green-500" />
+                          <span className="font-medium">Connected</span>
+                        </div>
+                      )}
+                    </div>
+                  </TabsContent>
+                </Tabs>
+              </CardContent>
+            </Card>
           </div>
 
-          {/* Telegram */}
-          <div className="p-6 rounded-2xl bg-zinc-900/50 border border-zinc-800">
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-blue-500/20 flex items-center justify-center">
-                  <MessageCircle className="w-5 h-5 text-blue-400" />
+          {/* Sidebar */}
+          <div className="space-y-6">
+            {/* Quick Stats */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Quick Stats</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Messages</span>
+                  <span className="font-medium">0</span>
                 </div>
-                <div>
-                  <p className="font-medium">Telegram</p>
-                  <p className="text-sm text-zinc-500">{telegramConnected ? "Connected" : "Not connected"}</p>
+                <Separator />
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Active Connections</span>
+                  <span className="font-medium">
+                    {connections.filter((c) => c.status === "connected").length}
+                  </span>
                 </div>
-              </div>
-              <span className={`px-3 py-1 rounded-full text-sm ${telegramConnected ? "bg-green-500/10 text-green-400" : "bg-zinc-800 text-zinc-500"}`}>
-                {telegramConnected ? "Active" : "Setup"}
-              </span>
-            </div>
+                <Separator />
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Member Since</span>
+                  <span className="font-medium">
+                    {new Date().toLocaleDateString()}
+                  </span>
+                </div>
+              </CardContent>
+            </Card>
 
-            {!telegramConnected ? (
-              <div className="text-center">
-                <a
-                  href="https://t.me/KinAssistantBot"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 transition"
-                >
-                  Open Telegram
-                </a>
-                <p className="text-sm text-zinc-400 mt-4">Click to start chatting with Kin</p>
-                <button
-                  onClick={() => setTelegramConnected(true)}
-                  className="mt-4 px-4 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 transition"
-                >
-                  Simulate Connection
-                </button>
-              </div>
-            ) : (
-              <div className="flex items-center justify-between p-4 rounded-xl bg-green-500/5 border border-green-500/20">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-zinc-800 flex items-center justify-center">
-                    <span className="text-lg">👤</span>
-                  </div>
-                  <div>
-                    <p className="font-medium">@username</p>
-                    <p className="text-sm text-zinc-500">Telegram User</p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setTelegramConnected(false)}
-                  className="text-red-400 hover:text-red-300 text-sm"
-                >
-                  Disconnect
-                </button>
-              </div>
-            )}
+            {/* Quick Links */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Quick Links</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <Button variant="ghost" className="w-full justify-between" asChild>
+                  <Link href="#">
+                    Documentation
+                    <ChevronRight className="h-4 w-4" />
+                  </Link>
+                </Button>
+                <Button variant="ghost" className="w-full justify-between" asChild>
+                  <Link href="#">
+                    Support
+                    <ChevronRight className="h-4 w-4" />
+                  </Link>
+                </Button>
+                <Button variant="ghost" className="w-full justify-between">
+                  <span className="flex items-center gap-2">
+                    <Settings className="h-4 w-4" />
+                    Settings
+                  </span>
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </CardContent>
+            </Card>
           </div>
         </div>
-
-        {/* Quick Actions */}
-        <div className="grid sm:grid-cols-3 gap-4 mb-12">
-          <div className="p-4 rounded-xl bg-zinc-900/50 border border-zinc-800">
-            <MessageCircle className="w-6 h-6 text-indigo-400 mb-3" />
-            <p className="font-medium mb-1">Messages</p>
-            <p className="text-2xl font-bold">0</p>
-            <p className="text-sm text-zinc-500">this month</p>
-          </div>
-
-          <div className="p-4 rounded-xl bg-zinc-900/50 border border-zinc-800">
-            <Phone className="w-6 h-6 text-purple-400 mb-3" />
-            <p className="font-medium mb-1">Calls</p>
-            <p className="text-2xl font-bold">0</p>
-            <p className="text-sm text-zinc-500">this month</p>
-          </div>
-
-          <div className="p-4 rounded-xl bg-zinc-900/50 border border-zinc-800">
-            <Key className="w-6 h-6 text-pink-400 mb-3" />
-            <p className="font-medium mb-1">Tasks</p>
-            <p className="text-2xl font-bold">0</p>
-            <p className="text-sm text-zinc-500">completed</p>
-          </div>
-        </div>
-
-        {/* Referral */}
-        <div className="p-6 rounded-2xl bg-gradient-to-r from-indigo-900/20 to-purple-900/20 border border-indigo-500/20">
-          <h3 className="font-medium mb-2">Share Kin with friends</h3>
-          <p className="text-zinc-400 text-sm mb-4">Give them 50% off their first month</p>
-
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value="https://kin.ai/start"
-              readOnly
-              className="flex-1 px-4 py-2 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-400"
-            />
-            <button
-              onClick={handleCopy}
-              className="px-4 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 transition flex items-center gap-2"
-            >
-              {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-              {copied ? "Copied" : "Copy"}
-            </button>
-          </div>
-        </div>
-      </main>
+      </div>
     </div>
-  );
+  )
 }

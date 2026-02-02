@@ -1,206 +1,183 @@
-import express, { Request, Response, NextFunction } from 'express';
+import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import dotenv from 'dotenv';
+import { json, urlencoded } from 'express';
 
 // Load environment variables
 dotenv.config();
 
-import { logger } from './utils';
-import { openClawRelayService } from './services/openclaw';
+// Import middleware
+import { corsOptions, securityHeaders, requestId } from './middleware/security';
+import rateLimitConfigs from './middleware/rateLimit';
+import { supabase } from './db/client';
+import logger, { log } from './utils/logger';
 
-// Import handlers
-import {
-  handleWhatsAppVerification,
-  handleWhatsAppWebhook,
-  getWhatsAppWebhookInfo,
-} from './handlers/whatsapp';
+// Import routes
+import stripeRoutes from './routes/stripe';
+import telegramRoutes from './routes/telegram';
+import whatsappRoutes from './routes/whatsapp';
+import apiRoutes from './routes/api';
 
-import {
-  handleTelegramWebhook,
-  setupTelegramWebhook,
-  deleteTelegramWebhook,
-  getTelegramWebhookInfo,
-} from './handlers/telegram';
+// Import services for initialization
+import { telegramService } from './services/telegram';
 
-import {
-  generateWhatsAppConnection,
-  generateTelegramConnection,
-  getUserConnections,
-  disconnectBot,
-} from './handlers/connection';
-
-// Create Express app
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// Middleware
+// Trust proxy (needed for Vercel)
+app.set('trust proxy', 1);
+
+// Attach Supabase to app for access in routes
+app.locals.supabase = supabase;
+
+// Security middleware
 app.use(helmet());
-app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
-  credentials: true,
+app.use(securityHeaders);
+app.use(cors(corsOptions));
+app.use(requestId);
+
+// Rate limiting
+app.use(rateLimitConfigs.api);
+
+// Body parsing
+app.use(json({ 
+  verify: (req: any, res, buf) => {
+    req.rawBody = buf; // Save raw body for webhook signature verification
+  }
 }));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(urlencoded({ extended: true }));
 
 // Request logging
-app.use((req: Request, _res: Response, next: NextFunction) => {
-  logger.info(`${req.method} ${req.path}`, {
-    ip: req.ip,
-    userAgent: req.get('user-agent'),
+app.use((req, res, next) => {
+  const start = Date.now();
+  
+  res.on('finish', () => {
+    const duration = Date.now() - start;
+    log.request(req, res, duration);
   });
+  
   next();
 });
 
+// ============================================
+// KIN BOT INTEGRATION ROUTES
+// ============================================
+
+// Telegram webhook routes - /api/webhooks/telegram
+app.use('/api/webhooks/telegram', telegramRoutes);
+
+// WhatsApp webhook routes - /api/webhooks/whatsapp
+app.use('/api/webhooks/whatsapp', whatsappRoutes);
+
+// API routes for connection management - /api/*
+app.use('/api', apiRoutes);
+
+// ============================================
+// EXISTING ROUTES
+// ============================================
+
 // Health check endpoint
-app.get('/health', async (_req: Request, res: Response) => {
-  const openClawHealth = await openClawRelayService.healthCheck();
+app.get('/api/health', async (req, res) => {
+  const dbHealth = await import('./db/client').then(m => m.checkDatabaseHealth());
+  const telegramBot = await telegramService.getMe();
+  const whatsappConfigured = !!(process.env.WHATSAPP_PHONE_NUMBER_ID && process.env.WHATSAPP_ACCESS_TOKEN);
   
   res.json({
-    status: 'ok',
+    status: 'healthy',
     timestamp: new Date().toISOString(),
-    services: {
-      database: 'ok', // Would check actual connection in production
-      openclaw: openClawHealth,
+    version: process.env.npm_package_version || '1.0.0',
+    environment: process.env.NODE_ENV,
+    database: dbHealth.healthy ? 'connected' : 'disconnected',
+    databaseLatency: dbHealth.latency,
+    integrations: {
+      telegram: telegramBot ? 'connected' : 'disconnected',
+      whatsapp: whatsappConfigured ? 'configured' : 'not_configured',
     },
   });
 });
 
-// ============================================
-// Webhook Routes
-// ============================================
+// Stripe routes
+app.use('/api/stripe', stripeRoutes);
 
-// WhatsApp Webhook
-// GET for verification, POST for messages
-app.route('/api/webhooks/whatsapp')
-  .get(handleWhatsAppVerification)
-  .post(handleWhatsAppWebhook);
-
-// WhatsApp webhook info (for debugging)
-app.get('/api/webhooks/whatsapp/info', getWhatsAppWebhookInfo);
-
-// Telegram Webhook
-app.post('/api/webhooks/telegram', handleTelegramWebhook);
-
-// Telegram webhook management
-app.route('/api/webhooks/telegram/setup')
-  .post(setupTelegramWebhook)
-  .delete(deleteTelegramWebhook);
-
-app.get('/api/webhooks/telegram/info', getTelegramWebhookInfo);
-
-// ============================================
-// Connection Routes
-// ============================================
-
-// Generate connection links
-app.get('/api/connect/whatsapp', generateWhatsAppConnection);
-app.get('/api/connect/telegram', generateTelegramConnection);
-
-// Get user's connections
-app.get('/api/connections', getUserConnections);
-
-// Disconnect a bot
-app.delete('/api/connections/:connectionId', disconnectBot);
-
-// ============================================
-// API Routes (for frontend)
-// ============================================
-
-// Get current user (placeholder - would integrate with Clerk)
-app.get('/api/me', (req: Request, res: Response) => {
-  const clerkId = req.headers['x-clerk-user-id'] as string;
-  
-  if (!clerkId) {
-    res.status(401).json({
-      success: false,
-      error: 'Unauthorized',
-    });
-    return;
+// Stripe webhook endpoint (must be before JSON parsing for raw body)
+app.post('/api/webhooks/stripe', 
+  express.raw({ type: 'application/json' }),
+  async (req, res) => {
+    const { handleStripeWebhook } = await import('./stripe/webhooks');
+    await handleStripeWebhook(req, res);
   }
+);
 
-  // In production, fetch user from database
+// Root route
+app.get('/', (req, res) => {
   res.json({
-    success: true,
-    data: {
-      clerk_id: clerkId,
-      // Additional user data would be fetched from DB
+    name: 'Kin API',
+    description: 'Kin AI Assistant API with WhatsApp and Telegram integrations',
+    version: process.env.npm_package_version || '1.0.0',
+    endpoints: {
+      health: '/api/health',
+      webhooks: {
+        telegram: '/api/webhooks/telegram',
+        whatsapp: '/api/webhooks/whatsapp',
+      },
+      api: {
+        connect: 'POST /api/connect',
+        status: 'GET /api/status/:userId',
+        send: 'POST /api/send',
+        platforms: 'GET /api/platforms',
+        disconnect: 'POST /api/disconnect',
+      },
     },
   });
 });
 
-// Send test message (for development)
-app.post('/api/test/send', async (req: Request, res: Response) => {
-  const { platform, to, message } = req.body;
-
-  if (!platform || !to || !message) {
-    res.status(400).json({
-      success: false,
-      error: 'Missing required fields: platform, to, message',
-    });
-    return;
-  }
-
-  try {
-    const { whatsAppService } = await import('./services/whatsapp');
-    const { telegramService } = await import('./services/telegram');
-
-    let success = false;
-
-    if (platform === 'whatsapp') {
-      success = await whatsAppService.sendTextMessage(to, message);
-    } else if (platform === 'telegram') {
-      success = await telegramService.sendTextMessage(to, message);
-    } else {
-      res.status(400).json({
-        success: false,
-        error: 'Invalid platform. Must be "whatsapp" or "telegram"',
-      });
-      return;
-    }
-
-    res.json({
-      success,
-      message: success ? 'Message sent' : 'Failed to send message',
-    });
-  } catch (error) {
-    logger.error('Error sending test message:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Internal server error',
-    });
-  }
+// Error handling
+app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  log.error('Unhandled error', err, {
+    path: req.path,
+    method: req.method,
+    requestId: req.id
+  });
+  
+  res.status(err.status || 500).json({
+    error: process.env.NODE_ENV === 'production' 
+      ? 'Internal server error' 
+      : err.message,
+    requestId: req.id
+  });
 });
-
-// ============================================
-// Error Handling
-// ============================================
 
 // 404 handler
-app.use((_req: Request, res: Response) => {
-  res.status(404).json({
-    success: false,
+app.use((req, res) => {
+  res.status(404).json({ 
     error: 'Not found',
-  });
-});
-
-// Global error handler
-app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
-  logger.error('Unhandled error:', err);
-  res.status(500).json({
-    success: false,
-    error: 'Internal server error',
+    path: req.path
   });
 });
 
 // Start server
-app.listen(PORT, () => {
-  logger.info(`🚀 Kin Backend server running on port ${PORT}`);
-  logger.info(`📱 WhatsApp webhook: http://localhost:${PORT}/api/webhooks/whatsapp`);
-  logger.info(`✈️ Telegram webhook: http://localhost:${PORT}/api/webhooks/telegram`);
-  logger.info(`🔗 Connection endpoints:`);
-  logger.info(`   - WhatsApp: GET http://localhost:${PORT}/api/connect/whatsapp`);
-  logger.info(`   - Telegram: GET http://localhost:${PORT}/api/connect/telegram`);
-});
+if (process.env.NODE_ENV !== 'test') {
+  app.listen(PORT, async () => {
+    log.info(`Server running on port ${PORT}`, {
+      environment: process.env.NODE_ENV,
+      port: PORT
+    });
+
+    // Initialize Telegram webhook in production
+    if (process.env.NODE_ENV === 'production' && process.env.TELEGRAM_WEBHOOK_URL) {
+      log.info('Setting up Telegram webhook...');
+      const success = await telegramService.setWebhook(
+        process.env.TELEGRAM_WEBHOOK_URL,
+        process.env.TELEGRAM_WEBHOOK_SECRET
+      );
+      if (success) {
+        log.info('✅ Telegram webhook configured');
+      } else {
+        log.error('❌ Failed to set Telegram webhook');
+      }
+    }
+  });
+}
 
 export default app;

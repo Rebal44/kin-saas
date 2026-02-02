@@ -1,319 +1,296 @@
 // src/routes/whatsapp.ts
-// WhatsApp webhook routes (Twilio)
+// WhatsApp webhook and API routes
 
 import { Router, Request, Response } from 'express';
-import { whatsappService } from '../services/whatsapp';
-import { kinBackendService } from '../services/kin';
 import { 
-  findOrCreateUser, 
-  saveMessage, 
-  getConversationHistory 
-} from '../db/client';
-import { logger } from '../utils/logger';
-import { verifyTwilioRequest, rateLimit } from '../middleware/auth';
+  handleWhatsAppWebhook,
+  handleWhatsAppVerification,
+  getWhatsAppWebhookInfo,
+} from '../handlers/whatsapp';
+import { whatsAppService } from '../services/whatsapp';
+import { messageRelayService } from '../services/messageRelay';
+import { createBotConnection, getBotConnectionsByUserId } from '../db';
+import { logger } from '../utils';
+import { rateLimit } from '../middleware/rateLimit';
+import QRCode from 'qrcode';
 
 const router = Router();
 
 // Apply rate limiting
 router.use(rateLimit(100, 60000));
 
-// WhatsApp webhook endpoint - POST /api/webhooks/whatsapp
-router.post('/', verifyTwilioRequest, async (req: Request, res: Response) => {
-  try {
-    // Parse incoming message
-    const payload = whatsappService.parseWebhookPayload(req.body);
-    if (!payload) {
-      logger.warn('Invalid WhatsApp webhook payload');
-      res.status(400).json({ error: 'Invalid payload' });
-      return;
-    }
+// WhatsApp webhook verification (GET) - /api/webhooks/whatsapp
+router.get('/', handleWhatsAppVerification);
 
-    // Extract user info
-    const { phoneNumber, profileName, waId } = whatsappService.extractUserInfo(payload);
-    const messageText = payload.Body;
-    const messageSid = payload.MessageSid;
+// WhatsApp webhook messages (POST) - /api/webhooks/whatsapp  
+router.post('/', handleWhatsAppWebhook);
 
-    logger.info(`WhatsApp message from ${phoneNumber}: ${messageText.substring(0, 50)}...`);
+// Get webhook info - GET /api/webhooks/whatsapp/info
+router.get('/info', getWhatsAppWebhookInfo);
 
-    // Check for control commands
-    const command = whatsappService.isControlCommand(messageText);
-    
-    if (command === 'stop') {
-      await handleStopCommand(phoneNumber);
-      res.status(200).send('OK');
-      return;
-    }
-
-    if (command === 'start') {
-      await handleStartCommand(phoneNumber, profileName, messageText);
-      res.status(200).send('OK');
-      return;
-    }
-
-    if (command === 'help') {
-      await whatsappService.sendHelpMessage(phoneNumber);
-      res.status(200).send('OK');
-      return;
-    }
-
-    // Process regular message
-    await handleRegularMessage(phoneNumber, waId, messageText, messageSid, profileName);
-
-    // Respond to Twilio
-    res.status(200).send('OK');
-
-  } catch (error) {
-    logger.error('Error processing WhatsApp webhook:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-// Handle START command
-async function handleStartCommand(
-  phoneNumber: string,
-  profileName: string | undefined,
-  fullMessage: string
-) {
-  try {
-    // Check if message contains connection token (START <token>)
-    const parts = fullMessage.split(' ');
-    const token = parts.length > 1 ? parts[1] : null;
-
-    // Find or create user
-    const user = await findOrCreateUser('whatsapp', phoneNumber, {
-      phoneNumber,
-      firstName: profileName,
-    });
-
-    // Send welcome message
-    await whatsappService.sendWelcomeMessage(phoneNumber, profileName);
-
-    // Register with Kin backend
-    await kinBackendService.registerUserConnection(
-      user.id,
-      'whatsapp',
-      phoneNumber,
-      { phoneNumber, firstName: profileName }
-    );
-
-    logger.info(`WhatsApp user connected: ${phoneNumber}`);
-
-  } catch (error) {
-    logger.error('Error handling START command:', error);
-    await whatsappService.sendMessage(
-      phoneNumber,
-      'Sorry, there was an error connecting. Please try again later.'
-    );
-  }
-}
-
-// Handle STOP command
-async function handleStopCommand(phoneNumber: string) {
-  logger.info(`User opted out: ${phoneNumber}`);
-  
-  // Send opt-out confirmation
-  await whatsappService.sendMessage(
-    phoneNumber,
-    'You have been unsubscribed from Kin messages. Reply START to resubscribe.'
-  );
-
-  // In production, update user record to mark as opted out
-  // await updateUserOptOut(phoneNumber, true);
-}
-
-// Handle regular user message
-async function handleRegularMessage(
-  phoneNumber: string,
-  waId: string,
-  text: string,
-  messageSid: string,
-  profileName?: string
-) {
-  try {
-    // Find or create user
-    const user = await findOrCreateUser('whatsapp', phoneNumber, {
-      phoneNumber,
-      firstName: profileName,
-    });
-
-    // Save incoming message
-    await saveMessage({
-      platform: 'whatsapp',
-      platform_message_id: messageSid,
-      user_id: user.id,
-      chat_id: phoneNumber,
-      content: text,
-      direction: 'inbound',
-      status: 'delivered',
-      metadata: { profileName, waId },
-    });
-
-    // Get conversation history
-    const history = await getConversationHistory(user.id, 20);
-
-    // Forward to Kin backend
-    const kinResponse = await kinBackendService.processMessage(
-      user.id,
-      'whatsapp',
-      text,
-      history
-    );
-
-    if (kinResponse) {
-      // Send response back to user
-      const sendResult = await whatsappService.sendMessage(
-        phoneNumber,
-        kinResponse.response
-      );
-
-      // Save outgoing message
-      if (sendResult.success) {
-        await saveMessage({
-          platform: 'whatsapp',
-          platform_message_id: sendResult.messageId || 'unknown',
-          user_id: user.id,
-          chat_id: phoneNumber,
-          content: kinResponse.response,
-          direction: 'outbound',
-          status: 'sent',
-        });
-      }
-    } else {
-      // Fallback response
-      await whatsappService.sendMessage(
-        phoneNumber,
-        "I'm sorry, I'm having trouble processing your message right now. Please try again in a moment."
-      );
-    }
-
-  } catch (error) {
-    logger.error('Error handling WhatsApp message:', error);
-    await whatsappService.sendMessage(
-      phoneNumber,
-      'Sorry, an error occurred. Please try again later.'
-    );
-  }
-}
-
-// Generate QR code for connection - GET /api/webhooks/whatsapp/qr
+// Generate connection QR code - GET /api/webhooks/whatsapp/qr?userId=xxx
 router.get('/qr', async (req: Request, res: Response) => {
-  const { userId } = req.query;
-  
-  if (!userId || typeof userId !== 'string') {
-    res.status(400).json({ error: 'userId is required' });
-    return;
-  }
+  try {
+    const { userId } = req.query;
+    
+    if (!userId || typeof userId !== 'string') {
+      res.status(400).json({ error: 'userId is required' });
+      return;
+    }
 
-  const result = await whatsappService.generateConnectionQR(userId);
-  
-  if (!result) {
+    // Create a pending connection
+    const connection = await createBotConnection({
+      user_id: userId,
+      platform: 'whatsapp',
+      is_connected: false,
+    });
+
+    if (!connection) {
+      res.status(500).json({ error: 'Failed to create connection' });
+      return;
+    }
+
+    // Get the WhatsApp Business number from env
+    const phoneNumber = process.env.WHATSAPP_PHONE_NUMBER?.replace('+', '') || '';
+    
+    if (!phoneNumber) {
+      res.status(500).json({ error: 'WhatsApp phone number not configured' });
+      return;
+    }
+
+    // Generate WhatsApp click-to-chat link with connection token
+    const message = `START ${connection.id}`;
+    const waLink = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`;
+
+    // Generate QR code
+    const qrCodeDataUrl = await QRCode.toDataURL(waLink, {
+      width: 400,
+      margin: 2,
+      color: {
+        dark: '#25d366',
+        light: '#ffffff',
+      },
+    });
+
+    res.json({
+      success: true,
+      connectionId: connection.id,
+      qrCode: qrCodeDataUrl,
+      waLink,
+      instructions: 'Scan the QR code with your phone or click the link to open WhatsApp and connect.',
+    });
+
+  } catch (error) {
+    logger.error('Error generating WhatsApp QR code:', error);
     res.status(500).json({ error: 'Failed to generate QR code' });
-    return;
   }
-
-  res.json({
-    qrCode: result.qrCode, // Base64 data URL
-    waLink: result.waLink,
-    instructions: 'Scan the QR code or click the link to open WhatsApp and start chatting with Kin.',
-  });
 });
 
-// Get connection link - GET /api/webhooks/whatsapp/connect
+// Get connection page with QR code - GET /api/webhooks/whatsapp/connect?userId=xxx
 router.get('/connect', async (req: Request, res: Response) => {
-  const { userId } = req.query;
-  
-  if (!userId || typeof userId !== 'string') {
-    res.status(400).json({ error: 'userId is required' });
-    return;
+  try {
+    const { userId } = req.query;
+    
+    if (!userId || typeof userId !== 'string') {
+      res.status(400).json({ error: 'userId is required' });
+      return;
+    }
+
+    // Create a pending connection
+    const connection = await createBotConnection({
+      user_id: userId,
+      platform: 'whatsapp',
+      is_connected: false,
+    });
+
+    if (!connection) {
+      res.status(500).json({ error: 'Failed to create connection' });
+      return;
+    }
+
+    // Get the WhatsApp Business number
+    const phoneNumber = process.env.WHATSAPP_PHONE_NUMBER?.replace('+', '') || '';
+    
+    if (!phoneNumber) {
+      res.status(500).json({ error: 'WhatsApp phone number not configured' });
+      return;
+    }
+
+    // Generate WhatsApp link
+    const message = `START ${connection.id}`;
+    const waLink = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`;
+
+    // Generate QR code
+    const qrCodeDataUrl = await QRCode.toDataURL(waLink, {
+      width: 400,
+      margin: 2,
+      color: {
+        dark: '#25d366',
+        light: '#ffffff',
+      },
+    });
+
+    // Return HTML page
+    const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Connect to Kin via WhatsApp</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      margin: 0;
+      background: linear-gradient(135deg, #25d366 0%, #128c7e 100%);
+      color: white;
+      padding: 20px;
+    }
+    .container {
+      background: white;
+      color: #333;
+      padding: 40px;
+      border-radius: 20px;
+      text-align: center;
+      max-width: 420px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    }
+    .logo {
+      font-size: 64px;
+      margin-bottom: 10px;
+    }
+    h1 { margin-bottom: 10px; color: #25d366; }
+    p { color: #666; margin-bottom: 20px; line-height: 1.5; }
+    .qr-code {
+      margin: 20px 0;
+      padding: 20px;
+      background: #f5f5f5;
+      border-radius: 15px;
+    }
+    .qr-code img {
+      width: 100%;
+      max-width: 300px;
+      border-radius: 10px;
+    }
+    .button {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      background: #25d366;
+      color: white;
+      padding: 16px 32px;
+      border-radius: 30px;
+      text-decoration: none;
+      font-weight: bold;
+      font-size: 16px;
+      transition: all 0.2s;
+      border: none;
+      cursor: pointer;
+    }
+    .button:hover { 
+      transform: scale(1.05); 
+      background: #128c7e;
+    }
+    .steps {
+      text-align: left;
+      margin: 20px 0;
+      padding: 20px;
+      background: #f5f5f5;
+      border-radius: 10px;
+    }
+    .steps ol {
+      margin-left: 20px;
+      color: #666;
+    }
+    .steps li {
+      margin-bottom: 10px;
+      line-height: 1.4;
+    }
+    .phone-number {
+      font-family: monospace;
+      background: #e8f5e9;
+      padding: 4px 8px;
+      border-radius: 4px;
+      color: #25d366;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="logo">💬</div>
+    <h1>Connect to Kin</h1>
+    <p>Chat with Kin directly in WhatsApp</p>
+    
+    <div class="qr-code">
+      <img src="${qrCodeDataUrl}" alt="WhatsApp QR Code">
+    </div>
+    
+    <a href="${waLink}" class="button">
+      <span>Open in WhatsApp</span>
+    </a>
+    
+    <div class="steps">
+      <ol>
+        <li>Scan the QR code or click the button</li>
+        <li>Tap <strong>Send</strong> to connect your account</li>
+        <li>Start chatting with Kin!</li>
+      </ol>
+    </div>
+    
+    <p style="font-size: 14px;">
+      Number: <span class="phone-number">+${phoneNumber}</span>
+    </p>
+  </div>
+</body>
+</html>`;
+
+    res.setHeader('Content-Type', 'text/html');
+    res.send(html);
+
+  } catch (error) {
+    logger.error('Error generating WhatsApp connect page:', error);
+    res.status(500).json({ error: 'Failed to generate page' });
   }
+});
 
-  const result = await whatsappService.generateConnectionQR(userId);
-  
-  if (!result) {
-    res.status(500).json({ error: 'Failed to generate connection link' });
-    return;
+// Complete connection (called from dashboard after user verification)
+// POST /api/webhooks/whatsapp/complete-connection
+router.post('/complete-connection', async (req: Request, res: Response) => {
+  try {
+    const { userId, phoneNumber } = req.body;
+
+    if (!userId || !phoneNumber) {
+      res.status(400).json({ error: 'userId and phoneNumber are required' });
+      return;
+    }
+
+    // Complete the connection
+    const connection = await messageRelayService.completeConnection(
+      userId,
+      'whatsapp',
+      phoneNumber
+    );
+
+    if (!connection) {
+      res.status(500).json({ error: 'Failed to complete connection' });
+      return;
+    }
+
+    res.json({
+      success: true,
+      connectionId: connection.id,
+      message: 'Connection completed successfully',
+    });
+
+  } catch (error) {
+    logger.error('Error completing WhatsApp connection:', error);
+    res.status(500).json({ error: 'Failed to complete connection' });
   }
-
-  // Return HTML page with QR code for easy scanning
-  const html = `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <title>Connect to Kin via WhatsApp</title>
-      <meta name="viewport" content="width=device-width, initial-scale=1">
-      <style>
-        body {
-          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          min-height: 100vh;
-          margin: 0;
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-          color: white;
-          padding: 20px;
-          box-sizing: border-box;
-        }
-        .container {
-          background: white;
-          color: #333;
-          padding: 40px;
-          border-radius: 20px;
-          text-align: center;
-          max-width: 400px;
-          box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-        }
-        h1 { margin-top: 0; color: #667eea; }
-        .qr-code {
-          margin: 20px 0;
-          max-width: 300px;
-        }
-        .qr-code img {
-          width: 100%;
-          border-radius: 10px;
-        }
-        .button {
-          display: inline-block;
-          background: #25d366;
-          color: white;
-          padding: 15px 30px;
-          border-radius: 30px;
-          text-decoration: none;
-          font-weight: bold;
-          margin-top: 20px;
-          transition: transform 0.2s;
-        }
-        .button:hover { transform: scale(1.05); }
-        .instructions {
-          margin-top: 20px;
-          color: #666;
-          font-size: 14px;
-          line-height: 1.5;
-        }
-      </style>
-    </head>
-    <body>
-      <div class="container">
-        <h1>📱 Connect to Kin</h1>
-        <p>Scan the QR code or click the button below to start chatting with Kin on WhatsApp.</p>
-        
-        <div class="qr-code">
-          <img src="${result.qrCode}" alt="WhatsApp QR Code">
-        </div>
-        
-        <a href="${result.waLink}" class="button">Open WhatsApp</a>
-        
-        <p class="instructions">
-          After opening WhatsApp, send the pre-filled message to connect your account.
-        </p>
-      </div>
-    </body>
-    </html>
-  `;
-
-  res.setHeader('Content-Type', 'text/html');
-  res.send(html);
 });
 
 export default router;

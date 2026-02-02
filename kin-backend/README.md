@@ -1,18 +1,39 @@
-# Kin Bot Integration
+# 🤖 Kin Backend - Bot Integration Layer
 
-WhatsApp and Telegram bot integration layer for Kin AI assistant.
+The backend API for Kin, handling WhatsApp and Telegram bot connections with message relay to OpenClaw.
 
-## Features
+## 📁 Project Structure
 
-- 🤖 **Telegram Bot**: Full Bot API integration with webhook support
-- 💬 **WhatsApp via Twilio**: Simple WhatsApp Business API alternative
-- 🔐 **Secure Connection Flow**: Token-based user connection
-- 📊 **Conversation History**: Stored in Supabase
-- 🔄 **Retry Logic**: Automatic retry for failed messages
-- 📱 **QR Code Generation**: Easy WhatsApp connection via QR
-- 🔗 **Deep Links**: Telegram bot invite with auto-connect
+```
+kin-backend/
+├── src/
+│   ├── handlers/        # Express route handlers
+│   │   ├── whatsapp.ts  # WhatsApp webhook handlers
+│   │   ├── telegram.ts  # Telegram webhook handlers
+│   │   └── connection.ts # User connection endpoints
+│   ├── services/        # Business logic services
+│   │   ├── whatsapp.ts  # WhatsApp Business API client
+│   │   ├── telegram.ts  # Telegram Bot API client
+│   │   ├── messageRelay.ts # Message routing/coordination
+│   │   └── openclaw.ts  # OpenClaw API relay
+│   ├── db/              # Database layer
+│   │   └── index.ts     # Supabase client and operations
+│   ├── types/           # TypeScript type definitions
+│   │   └── index.ts
+│   ├── utils/           # Utility functions
+│   │   └── index.ts
+│   └── index.ts         # Express app entry point
+├── tests/               # Test files
+│   ├── webhooks.test.ts
+│   └── integration.test.ts
+├── scripts/             # Utility scripts
+│   └── test-webhooks.sh # Manual webhook testing
+├── schema.sql           # Database schema
+├── .env.example         # Environment variable template
+└── package.json
+```
 
-## Quick Start
+## 🚀 Quick Start
 
 ### 1. Install Dependencies
 
@@ -21,142 +42,208 @@ cd kin-backend
 npm install
 ```
 
-### 2. Configure Environment
+### 2. Configure Environment Variables
 
 ```bash
 cp .env.example .env
-# Edit .env with your credentials
+# Edit .env with your actual values
 ```
 
 ### 3. Set Up Database
 
-Run the SQL in `src/db/schema.sql` in your Supabase SQL Editor.
+1. Create a new Supabase project
+2. Run the SQL in `schema.sql` in the Supabase SQL Editor
+3. Copy your Supabase URL and Service Key to `.env`
 
-### 4. Start Development Server
+### 4. Run Development Server
 
 ```bash
 npm run dev
 ```
 
-### 5. Configure Webhooks
+The server will start on `http://localhost:3001`
 
-**Telegram:**
-```bash
-# Set webhook (production)
-curl -X POST https://api.telegram.org/bot<TOKEN>/setWebhook \
-  -d url=https://your-domain.com/api/webhooks/telegram
-
-# Or use the API
-POST /api/webhooks/telegram/set-webhook
-```
-
-**Twilio WhatsApp:**
-1. Go to Twilio Console > Messaging > Try it out > Send a WhatsApp message
-2. Set webhook URL to: `https://your-domain.com/api/webhooks/whatsapp`
-
-## API Endpoints
+## 📡 API Endpoints
 
 ### Webhooks
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/webhooks/telegram` | POST | Telegram bot webhook |
-| `/api/webhooks/whatsapp` | POST | Twilio WhatsApp webhook |
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/webhooks/whatsapp` | WhatsApp webhook verification |
+| POST | `/api/webhooks/whatsapp` | Receive WhatsApp messages |
+| POST | `/api/webhooks/telegram` | Receive Telegram messages |
 
 ### Connection Management
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/connect` | POST | Generate connection link/QR |
-| `/api/status/:userId` | GET | Get user connection status |
-| `/api/send` | POST | Send message to user |
-| `/api/health` | GET | Health check |
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/connect/whatsapp` | Generate QR code for WhatsApp |
+| GET | `/api/connect/telegram` | Generate Telegram bot link |
+| GET | `/api/connections` | List user's connections |
+| DELETE | `/api/connections/:id` | Disconnect a bot |
 
-### WhatsApp Specific
+### Admin/Debug
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/webhooks/whatsapp/qr?userId=xxx` | GET | Get QR code JSON |
-| `/api/webhooks/whatsapp/connect?userId=xxx` | GET | QR code HTML page |
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/health` | Health check |
+| GET | `/api/webhooks/whatsapp/info` | WhatsApp config info |
+| GET | `/api/webhooks/telegram/info` | Telegram webhook info |
+| POST | `/api/webhooks/telegram/setup` | Set Telegram webhook |
+| POST | `/api/test/send` | Send test message |
 
-### Telegram Specific
+## 🔗 Webhook Configuration
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/webhooks/telegram/info` | GET | Bot info & webhook status |
-| `/api/webhooks/telegram/set-webhook` | POST | Set webhook |
-| `/api/webhooks/telegram/delete-webhook` | POST | Delete webhook |
+### WhatsApp Business API
 
-## Connection Flow
+1. Create a Meta Developer account and WhatsApp Business app
+2. Configure webhook URL: `https://your-domain.com/api/webhooks/whatsapp`
+3. Subscribe to `messages` webhook field
+4. Verify token must match `WHATSAPP_VERIFY_TOKEN` in `.env`
 
-### Telegram
+### Telegram Bot
 
-1. User signs up on Kin dashboard
-2. Dashboard calls `POST /api/connect` with `platform: telegram`
-3. Response includes `deepLink` like `https://t.me/bot_name?start=token`
-4. User clicks link, opens Telegram, presses Start
-5. Bot validates token and links accounts
-6. User can now chat with Kin directly
+1. Create a bot via @BotFather
+2. Set webhook automatically:
+   ```bash
+   curl -X POST http://localhost:3001/api/webhooks/telegram/setup \
+     -H "Content-Type: application/json" \
+     -d '{"webhookUrl": "https://your-domain.com/api/webhooks/telegram"}'
+   ```
 
-### WhatsApp
+## 🧪 Testing
 
-1. User signs up on Kin dashboard
-2. Dashboard calls `POST /api/connect` with `platform: whatsapp`
-3. Response includes `qrCode` (base64) and `waLink`
-4. User scans QR or clicks link
-5. WhatsApp opens with pre-filled message
-6. User sends message, bot validates and connects
-7. User can now chat with Kin directly
+### Automated Tests
 
-## Environment Variables
+```bash
+npm test
+```
+
+### Manual Webhook Testing
+
+```bash
+# Run all tests
+./scripts/test-webhooks.sh
+
+# Run specific tests
+./scripts/test-webhooks.sh health
+./scripts/test-webhooks.sh whatsapp-message
+./scripts/test-webhooks.sh telegram-start
+```
+
+### Test Individual Endpoints
+
+```bash
+# Health check
+curl http://localhost:3001/health
+
+# WhatsApp verification
+curl "http://localhost:3001/api/webhooks/whatsapp?hub.mode=subscribe&hub.verify_token=kin-dev-token&hub.challenge=test123"
+
+# Telegram message (simulated)
+curl -X POST http://localhost:3001/api/webhooks/telegram \
+  -H "Content-Type: application/json" \
+  -d '{
+    "update_id": 123,
+    "message": {
+      "message_id": 456,
+      "from": {"id": 789, "is_bot": false, "first_name": "Test"},
+      "chat": {"id": 789, "type": "private"},
+      "date": 1234567890,
+      "text": "Hello!"
+    }
+  }'
+```
+
+## 📊 Database Schema
+
+### Core Tables
+
+- **users** - User accounts linked to Clerk
+- **bot_connections** - WhatsApp/Telegram connections per user
+- **conversations** - Chat sessions
+- **incoming_messages** - Messages from users
+- **outgoing_messages** - Responses sent to users
+- **conversation_messages** - Full chat history
+- **subscriptions** - Stripe subscription data
+
+See `schema.sql` for full schema with indexes and RLS policies.
+
+## 🔧 Environment Variables
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `PORT` | No | Server port (default: 3000) |
+| `PORT` | No | Server port (default: 3001) |
 | `SUPABASE_URL` | Yes | Supabase project URL |
 | `SUPABASE_SERVICE_KEY` | Yes | Supabase service role key |
-| `TELEGRAM_BOT_TOKEN` | Yes | From @BotFather |
-| `TWILIO_ACCOUNT_SID` | Yes | Twilio account SID |
-| `TWILIO_AUTH_TOKEN` | Yes | Twilio auth token |
-| `TWILIO_PHONE_NUMBER` | Yes | Twilio WhatsApp number |
-| `KIN_API_URL` | Yes | Kin backend API URL |
+| `WHATSAPP_PHONE_NUMBER_ID` | For WhatsApp | Meta phone number ID |
+| `WHATSAPP_ACCESS_TOKEN` | For WhatsApp | Meta access token |
+| `WHATSAPP_VERIFY_TOKEN` | For WhatsApp | Webhook verify token |
+| `TELEGRAM_BOT_TOKEN` | For Telegram | Bot token from @BotFather |
+| `TELEGRAM_WEBHOOK_SECRET` | For Telegram | Webhook secret token |
+| `OPENCLAW_API_KEY` | For production | OpenClaw API key |
+| `CLERK_SECRET_KEY` | For auth | Clerk secret key |
 
-## Development
+## 📝 Message Flow
+
+```
+User → WhatsApp/Telegram → Webhook Handler
+                                     ↓
+                           Message Relay Service
+                                     ↓
+                           ┌─────────┴─────────┐
+                           ↓                   ↓
+                    Save to DB          Send to OpenClaw
+                           ↓                   ↓
+                    Conversation      Get Response
+                           ↓                   ↓
+                           └─────────┬─────────┘
+                                     ↓
+                           Send Response to User
+```
+
+## 🛠️ Development
+
+### Mock Mode
+
+Without API credentials, the backend runs in mock mode:
+- WhatsApp messages are logged but not sent
+- Telegram messages are logged but not sent
+- OpenClaw returns predefined responses based on keywords
+
+### Adding New Features
+
+1. Add types to `src/types/index.ts`
+2. Add database operations to `src/db/index.ts`
+3. Create/update service in `src/services/`
+4. Add handler in `src/handlers/`
+5. Register route in `src/index.ts`
+6. Write tests in `tests/`
+
+## 🚢 Deployment
+
+### Vercel
 
 ```bash
-# Run with hot reload
-npm run dev
-
-# Build for production
-npm run build
-
-# Run tests
-npm run test
-
-# Lint
-npm run lint
+npm i -g vercel
+vercel --prod
 ```
 
-## Architecture
+Set environment variables in Vercel dashboard.
 
-```
-┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│   Telegram  │────▶│  Webhook    │────▶│   Kin Bot   │
-│    User     │◀────│   Server    │◀────│ Integration │
-└─────────────┘     └─────────────┘     └──────┬──────┘
-                                               │
-┌─────────────┐     ┌─────────────┐           │
-│  WhatsApp   │────▶│   Twilio    │───────────┤
-│    User     │◀────│   Webhook   │◀──────────┘
-└─────────────┘     └─────────────┘
-                          │
-                          ▼
-                   ┌─────────────┐
-                   │  Supabase   │
-                   │  (History)  │
-                   └─────────────┘
+### Docker
+
+```dockerfile
+FROM node:20-alpine
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci --only=production
+COPY . .
+RUN npm run build
+EXPOSE 3001
+CMD ["node", "dist/index.js"]
 ```
 
-## License
+## 📜 License
 
 MIT
