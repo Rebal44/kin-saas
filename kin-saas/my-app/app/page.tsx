@@ -21,7 +21,7 @@ export default function Home() {
           </div>
 
           <h1 style={{ fontSize: "56px", fontWeight: 700, lineHeight: 1.1, marginBottom: "24px" }}>
-            The <span style={{ background: "linear-gradient(135deg, #6366f1, #9333ea)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>Easy Button</span><br />for AI
+            The <span style={{ color: "#6366f1" }}>Easy Button</span><br />for AI
           </h1>
 
           <p style={{ fontSize: "20px", color: "#a1a1aa", maxWidth: "576px", margin: "0 auto 32px" }}>
