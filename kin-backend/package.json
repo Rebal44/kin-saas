@@ -1,0 +1,43 @@
+{
+  "name": "kin-backend",
+  "version": "1.0.0",
+  "description": "Kin bot integration layer for WhatsApp and Telegram",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint src --ext .ts",
+    "db:generate": "supabase gen types typescript --project-id $SUPABASE_PROJECT_ID --schema public > src/db/schema.ts"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.39.0",
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "helmet": "^7.1.0",
+    "dotenv": "^16.3.1",
+    "zod": "^3.22.4",
+    "qrcode": "^1.5.3",
+    "axios": "^1.6.2",
+    "crypto": "^1.0.1",
+    "node-telegram-bot-api": "^0.64.0",
+    "whatsapp-web.js": "^1.23.0",
+    "puppeteer": "^21.6.1",
+    "winston": "^3.11.0"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/cors": "^2.8.17",
+    "@types/node": "^20.10.4",
+    "@types/qrcode": "^1.5.5",
+    "@types/node-telegram-bot-api": "^0.64.2",
+    "typescript": "^5.3.3",
+    "tsx": "^4.7.0",
+    "vitest": "^1.1.0",
+    "supertest": "^6.3.3",
+    "@types/supertest": "^6.0.2",
+    "eslint": "^8.56.0"
+  }
+}

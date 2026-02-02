@@ -1,0 +1,45 @@
+{
+  "version": 1,
+  "skills": {
+    "github": {
+      "version": "1.0.0",
+      "installedAt": 1770026299654
+    },
+    "himalaya": {
+      "version": "1.0.0",
+      "installedAt": 1770026312089
+    },
+    "summarize": {
+      "version": "1.0.0",
+      "installedAt": 1770026315829
+    },
+    "spotify-player": {
+      "version": "1.0.0",
+      "installedAt": 1770026319279
+    },
+    "sag": {
+      "version": "1.0.0",
+      "installedAt": 1770026326594
+    },
+    "openai-whisper": {
+      "version": "1.0.0",
+      "installedAt": 1770026329980
+    },
+    "slack": {
+      "version": "1.0.0",
+      "installedAt": 1770026333572
+    },
+    "notion": {
+      "version": "1.0.0",
+      "installedAt": 1770026337070
+    },
+    "tmux": {
+      "version": "1.0.0",
+      "installedAt": 1770026344511
+    },
+    "wacli": {
+      "version": "1.0.0",
+      "installedAt": 1770026348571
+    }
+  }
+}
