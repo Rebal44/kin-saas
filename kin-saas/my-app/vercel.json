@@ -1,1 +1,7 @@
-{"buildCommand":"npm run build","installCommand":"npm install"}
+{
+  "buildCommand": "npm run build",
+  "installCommand": "npm install",
+  "protection": {
+    "mode": "none"
+  }
+}
