@@ -67,6 +67,38 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      {/* Pricing Section */}
+      <section id="pricing" style={{ padding: "80px 16px", borderTop: "1px solid #27272a" }}>
+        <div style={{ maxWidth: "448px", margin: "0 auto", textAlign: "center" }}>
+          <h2 style={{ fontSize: "36px", fontWeight: 700, marginBottom: "16px" }}>Simple pricing</h2>
+          <p style={{ fontSize: "18px", color: "#a1a1aa", marginBottom: "48px" }}>One plan. Everything included.</p>
+
+          <div style={{ padding: "32px", borderRadius: "16px", backgroundColor: "#18181b", border: "1px solid #27272a", textAlign: "left" }}>
+            <div style={{ textAlign: "center", marginBottom: "32px" }}>
+              <p style={{ fontSize: "14px", color: "#71717a", marginBottom: "8px" }}>Kin Unlimited</p>
+              <div>
+                <span style={{ fontSize: "48px", fontWeight: 700 }}>$29</span>
+                <span style={{ color: "#71717a" }}>/month</span>
+              </div>
+            </div>
+
+            <div style={{ marginBottom: "32px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "12px", color: "#d4d4d8" }}><span style={{ color: "#22c55e" }}>✓</span>Unlimited messages</div>
+              <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "12px", color: "#d4d4d8" }}><span style={{ color: "#22c55e" }}>✓</span>WhatsApp & Telegram access</div>
+              <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "12px", color: "#d4d4d8" }}><span style={{ color: "#22c55e" }}>✓</span>Web browsing & automation</div>
+              <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "12px", color: "#d4d4d8" }}><span style={{ color: "#22c55e" }}>✓</span>Phone calls (fair use)</div>
+              <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "12px", color: "#d4d4d8" }}><span style={{ color: "#22c55e" }}>✓</span>Gmail & Calendar integration</div>
+              <div style={{ display: "flex", alignItems: "center", gap: "12px", color: "#d4d4d8" }}><span style={{ color: "#22c55e" }}>✓</span>Priority support</div>
+            </div>
+
+            <button style={{ width: "100%", padding: "16px", borderRadius: "12px", background: "linear-gradient(135deg, #4f46e5, #9333ea)", color: "white", border: "none", fontSize: "16px", fontWeight: 500, cursor: "pointer" }}>
+              Start Free Trial
+            </button>
+            <p style={{ textAlign: "center", marginTop: "16px", fontSize: "14px", color: "#71717a" }}>14 days free • Cancel anytime</p>
+          </div>
+        </div>
+      </section>
     </div>
   );
 }
