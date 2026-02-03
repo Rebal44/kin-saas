@@ -1,16 +1,32 @@
 import Stripe from 'stripe';
 
-function requireEnv(name: string): string {
-  const value = process.env[name];
-  if (!value) throw new Error(`Missing ${name}`);
+let stripeInstance: Stripe | null = null;
+let stripeKeyCached: string | null = null;
+
+export function getStripe(): Stripe {
+  const key = process.env.STRIPE_SECRET_KEY;
+  if (!key) throw new Error('Missing STRIPE_SECRET_KEY');
+
+  if (!stripeInstance || stripeKeyCached !== key) {
+    stripeInstance = new Stripe(key, { apiVersion: '2023-10-16' });
+    stripeKeyCached = key;
+  }
+
+  return stripeInstance;
+}
+
+export function getStripePriceId(): string {
+  const value = process.env.STRIPE_PRICE_ID;
+  if (!value) throw new Error('Missing STRIPE_PRICE_ID');
   return value;
 }
 
-export const stripe = new Stripe(requireEnv('STRIPE_SECRET_KEY'), {
-  apiVersion: '2023-10-16',
-});
+export function getStripeWebhookSecret(): string {
+  const value = process.env.STRIPE_WEBHOOK_SECRET;
+  if (!value) throw new Error('Missing STRIPE_WEBHOOK_SECRET');
+  return value;
+}
 
-export const STRIPE_PRICE_ID = requireEnv('STRIPE_PRICE_ID');
-export const STRIPE_WEBHOOK_SECRET = requireEnv('STRIPE_WEBHOOK_SECRET');
-export const STRIPE_TOPUP_PRICE_ID = process.env.STRIPE_TOPUP_PRICE_ID || '';
-
+export function getStripeTopupPriceId(): string {
+  return process.env.STRIPE_TOPUP_PRICE_ID || '';
+}

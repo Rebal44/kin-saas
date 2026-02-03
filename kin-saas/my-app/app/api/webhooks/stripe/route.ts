@@ -1,6 +1,6 @@
 import type Stripe from 'stripe';
-import { stripe, STRIPE_WEBHOOK_SECRET } from '@/lib/server/stripe';
-import { supabase } from '@/lib/server/supabase';
+import { getStripe, getStripeWebhookSecret } from '@/lib/server/stripe';
+import { getSupabase } from '@/lib/server/supabase';
 import { applyCreditTransaction, getMonthlyCredits } from '@/lib/server/credits';
 
 export const runtime = 'nodejs';
@@ -20,11 +20,14 @@ export async function POST(request: Request) {
 
   let event: Stripe.Event;
   try {
-    event = stripe.webhooks.constructEvent(payload, signature, STRIPE_WEBHOOK_SECRET);
+    const stripe = getStripe();
+    const webhookSecret = getStripeWebhookSecret();
+    event = stripe.webhooks.constructEvent(payload, signature, webhookSecret);
   } catch (err: any) {
     return Response.json({ error: err?.message || 'Invalid signature' }, { status: 400 });
   }
 
+  const supabase = getSupabase();
   await supabase.from('webhook_events').insert({
     source: 'stripe',
     event_type: event.type,
@@ -81,6 +84,7 @@ export async function POST(request: Request) {
 }
 
 async function handleCheckoutSessionCompleted(session: any) {
+  const supabase = getSupabase();
   if (session.mode === 'payment') {
     const userId = session.metadata?.userId;
     const credits = Number(session.metadata?.credits || process.env.TOPUP_CREDITS || 0);
@@ -126,6 +130,7 @@ async function handleCheckoutSessionCompleted(session: any) {
 
   if (!user) return;
 
+  const stripe = getStripe();
   const subscription = await stripe.subscriptions.retrieve(subscriptionId);
 
   await supabase.from('subscriptions').upsert(
@@ -161,6 +166,7 @@ async function handleCheckoutSessionCompleted(session: any) {
 }
 
 async function handleInvoicePaid(invoice: any) {
+  const supabase = getSupabase();
   const subscriptionId = invoice.subscription;
   if (!subscriptionId) return;
 
@@ -192,6 +198,7 @@ async function handleInvoicePaid(invoice: any) {
 }
 
 async function handleInvoicePaymentFailed(invoice: any) {
+  const supabase = getSupabase();
   const subscriptionId = invoice.subscription;
   if (!subscriptionId) return;
 
@@ -208,6 +215,7 @@ async function handleInvoicePaymentFailed(invoice: any) {
 }
 
 async function handleSubscriptionCreated(subscription: any) {
+  const supabase = getSupabase();
   const customerId = subscription.customer;
 
   const { data: user } = await supabase
@@ -241,6 +249,7 @@ async function handleSubscriptionCreated(subscription: any) {
 }
 
 async function handleSubscriptionUpdated(subscription: any) {
+  const supabase = getSupabase();
   await supabase
     .from('subscriptions')
     .update({
@@ -263,6 +272,7 @@ async function handleSubscriptionUpdated(subscription: any) {
 }
 
 async function handleSubscriptionDeleted(subscription: any) {
+  const supabase = getSupabase();
   await supabase
     .from('subscriptions')
     .update({ status: 'canceled', canceled_at: new Date(), updated_at: new Date() } as any)
@@ -276,6 +286,7 @@ async function handleSubscriptionDeleted(subscription: any) {
 }
 
 async function handleTrialWillEnd(subscription: any) {
+  const supabase = getSupabase();
   const customerId = subscription.customer;
   await supabase
     .from('users')

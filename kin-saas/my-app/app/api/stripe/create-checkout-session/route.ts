@@ -1,5 +1,5 @@
-import { stripe, STRIPE_PRICE_ID } from '@/lib/server/stripe';
-import { supabase } from '@/lib/server/supabase';
+import { getStripe, getStripePriceId } from '@/lib/server/stripe';
+import { getSupabase } from '@/lib/server/supabase';
 import { getRequestOrigin } from '@/lib/server/origin';
 import { ensureCreditBalanceRow } from '@/lib/server/credits';
 
@@ -8,6 +8,10 @@ export const dynamic = 'force-dynamic';
 
 export async function POST(request: Request) {
   try {
+    const stripe = getStripe();
+    const priceId = getStripePriceId();
+    const supabase = getSupabase();
+
     const body = (await request.json()) as { email?: string; name?: string };
     const email = body.email?.trim().toLowerCase();
     const name = body.name?.trim();
@@ -61,7 +65,7 @@ export async function POST(request: Request) {
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
       payment_method_types: ['card'],
-      line_items: [{ price: STRIPE_PRICE_ID, quantity: 1 }],
+      line_items: [{ price: priceId, quantity: 1 }],
       mode: 'subscription',
       success_url: `${origin}/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${origin}/cancel`,
@@ -79,4 +83,3 @@ export async function POST(request: Request) {
     return Response.json({ error: error?.message || 'Failed to create checkout session' }, { status: 500 });
   }
 }
-

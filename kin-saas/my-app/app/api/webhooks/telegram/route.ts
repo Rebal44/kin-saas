@@ -1,4 +1,4 @@
-import { supabase } from '@/lib/server/supabase';
+import { getSupabase } from '@/lib/server/supabase';
 import { debitCredits } from '@/lib/server/credits';
 import { kimiRespond } from '@/lib/server/kimi';
 import { getRequestOrigin } from '@/lib/server/origin';
@@ -37,6 +37,7 @@ export async function POST(request: Request) {
   }
 
   // Find active Telegram connection by chat_id
+  const supabase = getSupabase();
   const { data: connection } = await supabase
     .from('bot_connections')
     .select('id, user_id, is_connected')
@@ -154,6 +155,7 @@ export async function POST(request: Request) {
 }
 
 async function handleTelegramStart(chatId: string, token: string, username?: string) {
+  const supabase = getSupabase();
   const { data: connection } = await supabase
     .from('bot_connections')
     .select('id, platform, is_connected')
@@ -195,6 +197,7 @@ function extractTelegramText(message: any): string {
 }
 
 async function getOrCreateConversationId(userId: string, connectionId: string): Promise<string | null> {
+  const supabase = getSupabase();
   const { data: existing } = await supabase
     .from('conversations')
     .select('id')
@@ -223,6 +226,7 @@ async function getConversationHistory(
   conversationId: string,
   limit: number
 ): Promise<Array<{ role: 'user' | 'assistant'; content: string }>> {
+  const supabase = getSupabase();
   const { data } = await supabase
     .from('conversation_messages')
     .select('role, content')
@@ -233,4 +237,3 @@ async function getConversationHistory(
   const rows = (data || []) as Array<{ role: 'user' | 'assistant'; content: string }>;
   return rows.reverse().map((r) => ({ role: r.role, content: r.content }));
 }
-

@@ -1,5 +1,5 @@
-import { stripe } from '@/lib/server/stripe';
-import { supabase } from '@/lib/server/supabase';
+import { getStripe } from '@/lib/server/stripe';
+import { getSupabase } from '@/lib/server/supabase';
 import { applyCreditTransaction, getMonthlyCredits } from '@/lib/server/credits';
 import { telegramGetMe } from '@/lib/server/telegram';
 
@@ -8,6 +8,9 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
   try {
+    const stripe = getStripe();
+    const supabase = getSupabase();
+
     const { searchParams } = new URL(request.url);
     const sessionId = searchParams.get('sessionId');
     if (!sessionId) {

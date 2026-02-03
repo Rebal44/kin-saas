@@ -1,19 +1,27 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
-function requireEnv(name: string): string {
-  const value = process.env[name];
-  if (!value) throw new Error(`Missing ${name}`);
-  return value;
-}
+let supabaseInstance: SupabaseClient | null = null;
+let supabaseUrlCached: string | null = null;
+let supabaseKeyCached: string | null = null;
 
-export const supabase = createClient(
-  requireEnv('SUPABASE_URL'),
-  requireEnv('SUPABASE_SERVICE_ROLE_KEY'),
-  {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-    },
+export function getSupabase(): SupabaseClient {
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!url || !key) {
+    throw new Error('Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY');
   }
-);
 
+  if (!supabaseInstance || supabaseUrlCached !== url || supabaseKeyCached !== key) {
+    supabaseInstance = createClient(url, key, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+    });
+    supabaseUrlCached = url;
+    supabaseKeyCached = key;
+  }
+
+  return supabaseInstance;
+}

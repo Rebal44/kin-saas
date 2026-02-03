@@ -1,4 +1,4 @@
-import { supabase } from './supabase';
+import { getSupabase } from './supabase';
 
 const DEFAULT_MONTHLY_CREDITS = 10_000;
 
@@ -8,12 +8,14 @@ export function getMonthlyCredits(): number {
 }
 
 export async function ensureCreditBalanceRow(userId: string) {
+  const supabase = getSupabase();
   await supabase
     .from('credit_balances')
     .upsert({ user_id: userId, balance: 0 } as any, { onConflict: 'user_id' });
 }
 
 export async function getCreditBalance(userId: string): Promise<number> {
+  const supabase = getSupabase();
   await ensureCreditBalanceRow(userId);
   const { data } = await supabase
     .from('credit_balances')
@@ -30,6 +32,7 @@ export async function applyCreditTransaction(params: {
   reference?: string;
   metadata?: Record<string, unknown>;
 }): Promise<void> {
+  const supabase = getSupabase();
   const { userId, delta, reason, reference, metadata } = params;
 
   await ensureCreditBalanceRow(userId);
@@ -88,4 +91,3 @@ export async function debitCredits(params: {
 
   return { ok: true, balance: balance - amount };
 }
-

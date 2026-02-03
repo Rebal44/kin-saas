@@ -1,5 +1,5 @@
-import { stripe, STRIPE_TOPUP_PRICE_ID } from '@/lib/server/stripe';
-import { supabase } from '@/lib/server/supabase';
+import { getStripe, getStripeTopupPriceId } from '@/lib/server/stripe';
+import { getSupabase } from '@/lib/server/supabase';
 import { getRequestOrigin } from '@/lib/server/origin';
 
 export const runtime = 'nodejs';
@@ -7,6 +7,9 @@ export const dynamic = 'force-dynamic';
 
 export async function POST(request: Request) {
   try {
+    const stripe = getStripe();
+    const supabase = getSupabase();
+
     const body = (await request.json()) as { email?: string };
     const email = body.email?.trim().toLowerCase();
 
@@ -24,7 +27,8 @@ export async function POST(request: Request) {
       return Response.json({ error: 'User not found or not subscribed' }, { status: 400 });
     }
 
-    if (!STRIPE_TOPUP_PRICE_ID) {
+    const priceId = getStripeTopupPriceId();
+    if (!priceId) {
       return Response.json({ error: 'STRIPE_TOPUP_PRICE_ID is not configured' }, { status: 500 });
     }
 
@@ -33,7 +37,7 @@ export async function POST(request: Request) {
     const session = await stripe.checkout.sessions.create({
       customer: user.stripe_customer_id,
       payment_method_types: ['card'],
-      line_items: [{ price: STRIPE_TOPUP_PRICE_ID, quantity: 1 }],
+      line_items: [{ price: priceId, quantity: 1 }],
       mode: 'payment',
       success_url: `${origin}/top-up/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${origin}/top-up`,
@@ -49,4 +53,3 @@ export async function POST(request: Request) {
     return Response.json({ error: error?.message || 'Failed to create top up session' }, { status: 500 });
   }
 }
-
