@@ -20,9 +20,7 @@ export async function GET(request: Request) {
 
     const customerId =
       typeof session.customer === 'string' ? session.customer : session.customer?.id;
-    const email =
-      session.customer_details?.email ||
-      (typeof session.customer === 'string' ? undefined : session.customer?.email || undefined);
+    const email = session.customer_details?.email || undefined;
 
     if (!customerId || !email) {
       return Response.json(
@@ -116,4 +114,3 @@ export async function GET(request: Request) {
     return Response.json({ error: error?.message || 'Failed to resolve checkout session' }, { status: 500 });
   }
 }
-
