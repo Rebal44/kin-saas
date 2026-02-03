@@ -8,7 +8,7 @@ export function getStripe(): Stripe {
   if (!key) throw new Error('Missing STRIPE_SECRET_KEY');
 
   if (!stripeInstance || stripeKeyCached !== key) {
-    stripeInstance = new Stripe(key, { apiVersion: '2023-10-16' });
+    stripeInstance = new Stripe(key, { apiVersion: '2024-06-20' });
     stripeKeyCached = key;
   }
 
