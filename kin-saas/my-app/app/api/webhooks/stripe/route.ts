@@ -3,6 +3,10 @@ import crypto from 'crypto';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
+export async function GET() {
+  return new Response('ok', { status: 200 });
+}
+
 function parseStripeSignature(signature: string) {
   const items = signature.split(',').map((part) => part.trim());
   const map: Record<string, string[]> = {};
