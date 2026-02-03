@@ -1,6 +1,6 @@
-# 🤖 Kin Backend - Bot Integration Layer
+# Kin Backend (API)
 
-The backend API for Kin, handling WhatsApp and Telegram bot connections with message relay to OpenClaw.
+The backend API for Kin: Stripe billing + Telegram webhook + message relay to your AI backend.
 
 ## 📁 Project Structure
 
@@ -8,27 +8,27 @@ The backend API for Kin, handling WhatsApp and Telegram bot connections with mes
 kin-backend/
 ├── src/
 │   ├── handlers/        # Express route handlers
-│   │   ├── whatsapp.ts  # WhatsApp webhook handlers
 │   │   ├── telegram.ts  # Telegram webhook handlers
-│   │   └── connection.ts # User connection endpoints
 │   ├── services/        # Business logic services
-│   │   ├── whatsapp.ts  # WhatsApp Business API client
 │   │   ├── telegram.ts  # Telegram Bot API client
 │   │   ├── messageRelay.ts # Message routing/coordination
-│   │   └── openclaw.ts  # OpenClaw API relay
+│   │   └── kinAi.ts     # Kin AI relay
 │   ├── db/              # Database layer
 │   │   └── index.ts     # Supabase client and operations
 │   ├── types/           # TypeScript type definitions
 │   │   └── index.ts
 │   ├── utils/           # Utility functions
 │   │   └── index.ts
-│   └── index.ts         # Express app entry point
+│   ├── app.ts           # Express app (no listen)
+│   └── server.ts        # Local dev server (listens)
+├── api/
+│   └── [...path].ts     # Vercel serverless entrypoint
 ├── tests/               # Test files
 │   ├── webhooks.test.ts
 │   └── integration.test.ts
 ├── scripts/             # Utility scripts
 │   └── test-webhooks.sh # Manual webhook testing
-├── schema.sql           # Database schema
+├── schema.sql           # Legacy schema (use `supabase/migrations` instead)
 ├── .env.example         # Environment variable template
 └── package.json
 ```
@@ -52,8 +52,11 @@ cp .env.example .env
 ### 3. Set Up Database
 
 1. Create a new Supabase project
-2. Run the SQL in `schema.sql` in the Supabase SQL Editor
-3. Copy your Supabase URL and Service Key to `.env`
+2. Apply migrations in `supabase/migrations/` (repo root)
+3. Copy your Supabase URL + keys to `.env`:
+   - `SUPABASE_URL`
+   - `SUPABASE_ANON_KEY`
+   - `SUPABASE_SERVICE_ROLE_KEY`
 
 ### 4. Run Development Server
 
@@ -69,44 +72,25 @@ The server will start on `http://localhost:3001`
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/api/webhooks/whatsapp` | WhatsApp webhook verification |
-| POST | `/api/webhooks/whatsapp` | Receive WhatsApp messages |
 | POST | `/api/webhooks/telegram` | Receive Telegram messages |
-
-### Connection Management
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/connect/whatsapp` | Generate QR code for WhatsApp |
-| GET | `/api/connect/telegram` | Generate Telegram bot link |
-| GET | `/api/connections` | List user's connections |
-| DELETE | `/api/connections/:id` | Disconnect a bot |
+| POST | `/api/webhooks/stripe` | Stripe webhooks |
 
 ### Admin/Debug
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/health` | Health check |
-| GET | `/api/webhooks/whatsapp/info` | WhatsApp config info |
+| GET | `/api/health` | Health check |
 | GET | `/api/webhooks/telegram/info` | Telegram webhook info |
-| POST | `/api/webhooks/telegram/setup` | Set Telegram webhook |
-| POST | `/api/test/send` | Send test message |
+| POST | `/api/webhooks/telegram/set-webhook` | Set Telegram webhook |
 
 ## 🔗 Webhook Configuration
-
-### WhatsApp Business API
-
-1. Create a Meta Developer account and WhatsApp Business app
-2. Configure webhook URL: `https://your-domain.com/api/webhooks/whatsapp`
-3. Subscribe to `messages` webhook field
-4. Verify token must match `WHATSAPP_VERIFY_TOKEN` in `.env`
 
 ### Telegram Bot
 
 1. Create a bot via @BotFather
 2. Set webhook automatically:
    ```bash
-   curl -X POST http://localhost:3001/api/webhooks/telegram/setup \
+   curl -X POST http://localhost:3001/api/webhooks/telegram/set-webhook \
      -H "Content-Type: application/json" \
      -d '{"webhookUrl": "https://your-domain.com/api/webhooks/telegram"}'
    ```
@@ -127,7 +111,6 @@ npm test
 
 # Run specific tests
 ./scripts/test-webhooks.sh health
-./scripts/test-webhooks.sh whatsapp-message
 ./scripts/test-webhooks.sh telegram-start
 ```
 
@@ -135,10 +118,7 @@ npm test
 
 ```bash
 # Health check
-curl http://localhost:3001/health
-
-# WhatsApp verification
-curl "http://localhost:3001/api/webhooks/whatsapp?hub.mode=subscribe&hub.verify_token=kin-dev-token&hub.challenge=test123"
+curl http://localhost:3001/api/health
 
 # Telegram message (simulated)
 curl -X POST http://localhost:3001/api/webhooks/telegram \
@@ -159,15 +139,15 @@ curl -X POST http://localhost:3001/api/webhooks/telegram \
 
 ### Core Tables
 
-- **users** - User accounts linked to Clerk
-- **bot_connections** - WhatsApp/Telegram connections per user
+- **users** - User accounts (email + Stripe customer id)
+- **bot_connections** - Telegram connections per user
 - **conversations** - Chat sessions
 - **incoming_messages** - Messages from users
 - **outgoing_messages** - Responses sent to users
 - **conversation_messages** - Full chat history
 - **subscriptions** - Stripe subscription data
 
-See `schema.sql` for full schema with indexes and RLS policies.
+See `supabase/migrations` for the schema (this repo’s source of truth).
 
 ## 🔧 Environment Variables
 
@@ -175,14 +155,17 @@ See `schema.sql` for full schema with indexes and RLS policies.
 |----------|----------|-------------|
 | `PORT` | No | Server port (default: 3001) |
 | `SUPABASE_URL` | Yes | Supabase project URL |
-| `SUPABASE_SERVICE_KEY` | Yes | Supabase service role key |
-| `WHATSAPP_PHONE_NUMBER_ID` | For WhatsApp | Meta phone number ID |
-| `WHATSAPP_ACCESS_TOKEN` | For WhatsApp | Meta access token |
-| `WHATSAPP_VERIFY_TOKEN` | For WhatsApp | Webhook verify token |
+| `SUPABASE_SERVICE_ROLE_KEY` | Yes | Supabase service role key |
 | `TELEGRAM_BOT_TOKEN` | For Telegram | Bot token from @BotFather |
 | `TELEGRAM_WEBHOOK_SECRET` | For Telegram | Webhook secret token |
-| `OPENCLAW_API_KEY` | For production | OpenClaw API key |
-| `CLERK_SECRET_KEY` | For auth | Clerk secret key |
+| `STRIPE_SECRET_KEY` | Yes | Stripe secret key |
+| `STRIPE_WEBHOOK_SECRET` | Yes | Stripe webhook signing secret |
+| `STRIPE_PRICE_ID` | Yes | Stripe recurring price id ($29/mo) |
+| `STRIPE_TOPUP_PRICE_ID` | Optional | Stripe one‑time price id for credits |
+| `TOPUP_CREDITS` | Optional | Credits per top‑up (default 5000) |
+| `KIN_AI_API_KEY` | Yes | Kimi API key |
+| `KIN_AI_API_URL` | Optional | Base URL (default `https://api.moonshot.ai/v1`) |
+| `KIN_AI_MODEL` | Optional | Model (default `kimi-k2.5`) |
 
 ## 📝 Message Flow
 
@@ -193,7 +176,7 @@ User → WhatsApp/Telegram → Webhook Handler
                                      ↓
                            ┌─────────┴─────────┐
                            ↓                   ↓
-                    Save to DB          Send to OpenClaw
+                    Save to DB          Send to Kin AI
                            ↓                   ↓
                     Conversation      Get Response
                            ↓                   ↓
@@ -204,12 +187,9 @@ User → WhatsApp/Telegram → Webhook Handler
 
 ## 🛠️ Development
 
-### Mock Mode
+### Kimi Required
 
-Without API credentials, the backend runs in mock mode:
-- WhatsApp messages are logged but not sent
-- Telegram messages are logged but not sent
-- OpenClaw returns predefined responses based on keywords
+If `KIN_AI_API_KEY` is missing, Telegram replies will be disabled (no mock/fake responses).
 
 ### Adding New Features
 
@@ -217,7 +197,7 @@ Without API credentials, the backend runs in mock mode:
 2. Add database operations to `src/db/index.ts`
 3. Create/update service in `src/services/`
 4. Add handler in `src/handlers/`
-5. Register route in `src/index.ts`
+5. Register route in `src/app.ts`
 6. Write tests in `tests/`
 
 ## 🚢 Deployment
@@ -239,9 +219,9 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci --only=production
 COPY . .
-RUN npm run build
-EXPOSE 3001
-CMD ["node", "dist/index.js"]
+ RUN npm run build
+ EXPOSE 3001
+ CMD ["node", "dist/server.js"]
 ```
 
 ## 📜 License

@@ -74,3 +74,6 @@ supabase/.temp/
 # Misc
 *.pem
 .local/
+
+# Assistant memory/logs (do not commit)
+memory/

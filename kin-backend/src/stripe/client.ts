@@ -6,6 +6,7 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 
 export const STRIPE_PRICE_ID = process.env.STRIPE_PRICE_ID!;
 export const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET!;
+export const STRIPE_TOPUP_PRICE_ID = process.env.STRIPE_TOPUP_PRICE_ID;
 
 export default stripe;
 
@@ -82,6 +83,34 @@ export async function createPortalSession(
     flow_data: {
       type: 'payment_method_update'
     }
+  });
+}
+
+// Create a one-time Top Up Checkout Session
+export async function createTopUpSession(
+  customerId: string,
+  successUrl: string,
+  cancelUrl: string,
+  metadata: Record<string, string>
+) {
+  if (!STRIPE_TOPUP_PRICE_ID) {
+    throw new Error('STRIPE_TOPUP_PRICE_ID is not configured');
+  }
+
+  return stripe.checkout.sessions.create({
+    customer: customerId,
+    payment_method_types: ['card'],
+    line_items: [
+      {
+        price: STRIPE_TOPUP_PRICE_ID,
+        quantity: 1,
+      },
+    ],
+    mode: 'payment',
+    success_url: successUrl,
+    cancel_url: cancelUrl,
+    metadata,
+    allow_promotion_codes: false,
   });
 }
 

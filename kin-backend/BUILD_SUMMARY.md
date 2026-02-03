@@ -26,8 +26,8 @@
 - **Central message relay service** (`src/services/messageRelay.ts`)
   - Processes incoming messages from both platforms
   - Saves messages to database
-  - Forwards to OpenClaw (mock mode for development)
-  - Receives responses from OpenClaw
+  - Forwards to Kimi (Moonshot)
+  - Receives responses from Kimi (Moonshot)
   - Sends responses back to users via appropriate platform
 - **Platform abstraction** - unified handling for WhatsApp/Telegram
 
@@ -63,7 +63,7 @@
   - Webhook verification tests
   - Message processing tests
   - Integration tests for relay service
-  - Mock OpenClaw responses
+  - Mock Kin AI responses
 
 ## 📁 File Structure
 
@@ -79,7 +79,7 @@ kin-backend/
 │   │   ├── whatsapp.ts          # WhatsApp Business API (176 lines)
 │   │   ├── telegram.ts          # Telegram Bot API (243 lines)
 │   │   ├── messageRelay.ts      # Message coordination (426 lines)
-│   │   ├── openclaw.ts          # OpenClaw relay (143 lines)
+│   │   ├── kinAi.ts             # Kin AI relay
 │   │   └── kin.ts               # Kin service (123 lines)
 │   ├── db/
 │   │   └── index.ts             # Database operations (340 lines)
@@ -171,7 +171,7 @@ npm test
 - `SUPABASE_URL` & `SUPABASE_SERVICE_KEY` - Database
 - `WHATSAPP_*` - WhatsApp Business API credentials
 - `TELEGRAM_BOT_TOKEN` - Telegram bot token
-- `OPENCLAW_API_KEY` - For production OpenClaw integration
+- `KIN_AI_API_KEY` - For production AI integration
 
 ## 📊 Stats
 

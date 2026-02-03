@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import stripe, { constructWebhookEvent } from './client';
 import { supabase } from '../db/client';
+import { applyCreditTransaction, getMonthlyCredits } from '../services/credits';
 
 // Stripe webhook handler
 export async function handleStripeWebhook(req: Request, res: Response) {
@@ -23,7 +24,12 @@ export async function handleStripeWebhook(req: Request, res: Response) {
   await supabase.from('webhook_events').insert({
     source: 'stripe',
     event_type: event.type,
-    payload: event.data.object as any,
+    payload: {
+      id: event.id,
+      type: event.type,
+      created: event.created,
+      data: event.data,
+    } as any,
     processed: false
   });
 
@@ -84,20 +90,55 @@ export async function handleStripeWebhook(req: Request, res: Response) {
 
 // Handle checkout.session.completed
 async function handleCheckoutSessionCompleted(session: any) {
+  if (session.mode === 'payment') {
+    const userId = session.metadata?.userId;
+    const credits = Number(session.metadata?.credits || process.env.TOPUP_CREDITS || 0);
+    if (userId && credits > 0) {
+      await applyCreditTransaction({
+        userId,
+        delta: credits,
+        reason: 'top_up',
+        reference: `stripe:topup:${session.id}`,
+        metadata: { sessionId: session.id },
+      });
+    }
+    return;
+  }
+
   if (session.mode !== 'subscription') return;
 
   const customerId = session.customer;
   const subscriptionId = session.subscription;
 
-  // Get user by stripe_customer_id
-  const { data: user, error } = await supabase
+  // Get or create user by stripe_customer_id
+  const { data: userByCustomer } = await supabase
     .from('users')
-    .select('id')
+    .select('id, email')
     .eq('stripe_customer_id', customerId)
+    .maybeSingle();
+
+  const email = session.customer_details?.email || userByCustomer?.email;
+
+  if (!email) {
+    console.error('No email available for checkout session customer:', customerId);
+    return;
+  }
+
+  const { data: user, error: userUpsertError } = await supabase
+    .from('users')
+    .upsert(
+      {
+        email,
+        stripe_customer_id: customerId,
+        subscription_status: 'inactive',
+      } as any,
+      { onConflict: 'email' }
+    )
+    .select('id')
     .single();
 
-  if (error || !user) {
-    console.error('User not found for customer:', customerId);
+  if (userUpsertError || !user) {
+    console.error('Failed to upsert user for customer:', customerId, userUpsertError);
     return;
   }
 
@@ -127,6 +168,17 @@ async function handleCheckoutSessionCompleted(session: any) {
         : null
     })
     .eq('id', user.id);
+
+  // Grant initial monthly credits at the start of the subscription/trial
+  if (['active', 'trialing'].includes(subscription.status)) {
+    await applyCreditTransaction({
+      userId: user.id,
+      delta: getMonthlyCredits(),
+      reason: 'monthly_allowance',
+      reference: `stripe:subscription_start:${subscription.id}:${subscription.current_period_start}`,
+      metadata: { subscriptionId: subscription.id, periodStart: subscription.current_period_start },
+    });
+  }
 }
 
 // Handle invoice.paid
@@ -141,6 +193,29 @@ async function handleInvoicePaid(invoice: any) {
       updated_at: new Date()
     })
     .eq('stripe_subscription_id', subscriptionId);
+
+  // Refill credits on renewal invoices (avoid double-grant on initial checkout)
+  if (invoice.billing_reason !== 'subscription_cycle') {
+    return;
+  }
+
+  // Grant credits once per renewal invoice (prevents double-grant via retries)
+  const customerId = invoice.customer;
+  const { data: user } = await supabase
+    .from('users')
+    .select('id')
+    .eq('stripe_customer_id', customerId)
+    .maybeSingle();
+
+  if (user?.id) {
+    await applyCreditTransaction({
+      userId: user.id,
+      delta: getMonthlyCredits(),
+      reason: 'monthly_allowance',
+      reference: `stripe:invoice_paid:${invoice.id}`,
+      metadata: { invoiceId: invoice.id, subscriptionId },
+    });
+  }
 }
 
 // Handle invoice.payment_failed

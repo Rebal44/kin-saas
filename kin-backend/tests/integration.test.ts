@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { messageRelayService } from '../src/services/messageRelay';
-import { openClawRelayService } from '../src/services/openclaw';
+import { kinAiRelayService } from '../src/services/kinAi';
 import { whatsAppService } from '../src/services/whatsapp';
 import { telegramService } from '../src/services/telegram';
 
@@ -75,7 +75,7 @@ describe('Message Relay Service', () => {
       vi.mocked(db.saveIncomingMessage).mockResolvedValue({ id: 'msg_db_123' } as any);
       vi.mocked(db.getOrCreateConversation).mockResolvedValue({ id: 'conv_123' } as any);
       vi.mocked(db.saveOutgoingMessage).mockResolvedValue({ id: 'out_123' } as any);
-      vi.mocked(openClawRelayService.sendMessage).mockResolvedValue({
+      vi.mocked(kinAiRelayService.sendMessage).mockResolvedValue({
         message: 'Hello! How can I help?',
       });
 
@@ -92,7 +92,7 @@ describe('Message Relay Service', () => {
       await messageRelayService.processWhatsAppMessage(message, 'phone_123');
 
       expect(db.saveIncomingMessage).toHaveBeenCalled();
-      expect(openClawRelayService.sendMessage).toHaveBeenCalled();
+      expect(kinAiRelayService.sendMessage).toHaveBeenCalled();
       expect(sendMessageSpy).toHaveBeenCalledWith('1234567890', 'Hello! How can I help?');
     });
   });
@@ -142,7 +142,7 @@ describe('Message Relay Service', () => {
       vi.mocked(db.saveIncomingMessage).mockResolvedValue({ id: 'msg_db_123' } as any);
       vi.mocked(db.getOrCreateConversation).mockResolvedValue({ id: 'conv_123' } as any);
       vi.mocked(db.saveOutgoingMessage).mockResolvedValue({ id: 'out_123' } as any);
-      vi.mocked(openClawRelayService.sendMessage).mockResolvedValue({
+      vi.mocked(kinAiRelayService.sendMessage).mockResolvedValue({
         message: 'Got your message!',
       });
 
@@ -166,16 +166,16 @@ describe('Message Relay Service', () => {
       await messageRelayService.processTelegramMessage(message);
 
       expect(db.saveIncomingMessage).toHaveBeenCalled();
-      expect(openClawRelayService.sendMessage).toHaveBeenCalled();
+      expect(kinAiRelayService.sendMessage).toHaveBeenCalled();
       expect(sendMessageSpy).toHaveBeenCalledWith(456, 'Got your message!');
     });
   });
 });
 
-describe('OpenClaw Relay Service', () => {
+describe('Kin AI Relay Service', () => {
   describe('sendMessage', () => {
     it('should return mock response in mock mode', async () => {
-      const response = await openClawRelayService.sendMessage({
+      const response = await kinAiRelayService.sendMessage({
         message: 'Hello',
         user_id: 'user_123',
         conversation_id: 'conv_123',
@@ -187,7 +187,7 @@ describe('OpenClaw Relay Service', () => {
     });
 
     it('should generate appropriate mock responses', async () => {
-      const greetings = await openClawRelayService.sendMessage({
+      const greetings = await kinAiRelayService.sendMessage({
         message: 'hello',
         user_id: 'user_123',
         conversation_id: 'conv_123',
@@ -195,7 +195,7 @@ describe('OpenClaw Relay Service', () => {
       });
       expect(greetings.message).toContain('Hello');
 
-      const help = await openClawRelayService.sendMessage({
+      const help = await kinAiRelayService.sendMessage({
         message: 'help',
         user_id: 'user_123',
         conversation_id: 'conv_123',

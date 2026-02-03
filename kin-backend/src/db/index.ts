@@ -1,4 +1,4 @@
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import {
   User,
   BotConnection,
@@ -8,28 +8,11 @@ import {
   ConversationMessage,
   Platform,
 } from '../types';
-
-// Database singleton
-let supabase: SupabaseClient | null = null;
+import { supabase as supabaseService } from './client';
 
 export function getSupabaseClient(): SupabaseClient {
-  if (!supabase) {
-    const supabaseUrl = process.env.SUPABASE_URL;
-    const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
-
-    if (!supabaseUrl || !supabaseKey) {
-      throw new Error('Supabase URL and Service Key must be set in environment variables');
-    }
-
-    supabase = createClient(supabaseUrl, supabaseKey, {
-      auth: {
-        persistSession: false,
-        autoRefreshToken: false,
-      },
-    });
-  }
-
-  return supabase;
+  // `src/db/client.ts` already provides a correctly configured service-role client.
+  return supabaseService;
 }
 
 // User Operations
@@ -180,12 +163,14 @@ export async function markConnectionAsConnected(
   identifier: string
 ): Promise<BotConnection | null> {
   const client = getSupabaseClient();
+  const isNumeric = identifier.match(/^\d+$/);
   const { data, error } = await client
     .from('bot_connections')
     .update({
       is_connected: true,
       connected_at: new Date().toISOString(),
-      ...(identifier.match(/^\d+$/) ? { chat_id: identifier } : { phone_number: identifier }),
+      platform_user_id: identifier,
+      ...(isNumeric ? { chat_id: identifier } : { phone_number: identifier }),
     })
     .eq('id', id)
     .select()
