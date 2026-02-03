@@ -20,7 +20,6 @@ summarize "https://youtu.be/dQw4w9WgXcQ" --youtube auto
 ## Model + keys
 
 Set the API key for your chosen provider:
-- OpenAI: `OPENAI_API_KEY`
 - Anthropic: `ANTHROPIC_API_KEY`
 - xAI: `XAI_API_KEY`
 - Google: `GEMINI_API_KEY` (aliases: `GOOGLE_GENERATIVE_AI_API_KEY`, `GOOGLE_API_KEY`)
@@ -41,7 +40,7 @@ Default model is `google/gemini-3-flash-preview` if none is set.
 Optional config file: `~/.summarize/config.json`
 
 ```json
-{ "model": "openai/gpt-5.2" }
+{ "model": "google/gemini-3-flash-preview" }
 ```
 
 Optional services:

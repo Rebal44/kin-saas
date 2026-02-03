@@ -21,10 +21,6 @@
       "version": "1.0.0",
       "installedAt": 1770026326594
     },
-    "openai-whisper": {
-      "version": "1.0.0",
-      "installedAt": 1770026329980
-    },
     "slack": {
       "version": "1.0.0",
       "installedAt": 1770026333572
