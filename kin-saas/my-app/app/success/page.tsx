@@ -1,12 +1,20 @@
+import { headers } from "next/headers";
+
 export const dynamic = "force-dynamic";
 
 type PageProps = {
   searchParams?: Record<string, string | string[] | undefined>;
 };
 
-function getApiUrl() {
-  const value = process.env.NEXT_PUBLIC_API_URL || "";
-  return value.replace(/\/$/, "");
+function getBaseUrl() {
+  const value = process.env.NEXT_PUBLIC_API_URL;
+  if (value) return value.replace(/\/$/, "");
+
+  const h = headers();
+  const proto = h.get("x-forwarded-proto") || "https";
+  const host = h.get("x-forwarded-host") || h.get("host") || "";
+  if (!host) return "http://localhost:3000";
+  return `${proto}://${host}`;
 }
 
 export default async function SuccessPage({ searchParams }: PageProps) {
@@ -39,35 +47,9 @@ export default async function SuccessPage({ searchParams }: PageProps) {
     );
   }
 
-  const apiUrl = getApiUrl();
-  if (!apiUrl) {
-    return (
-      <main
-        style={{
-          minHeight: "100vh",
-          background: "#0a0a0a",
-          color: "#fafafa",
-          fontFamily: "system-ui, -apple-system, sans-serif",
-          padding: 24,
-          display: "grid",
-          placeItems: "center",
-        }}
-      >
-        <div style={{ maxWidth: 560, width: "100%" }}>
-          <h1 style={{ fontSize: 28, fontWeight: 800, marginBottom: 10 }}>Setup error</h1>
-          <p style={{ color: "#a1a1aa", lineHeight: 1.6, marginBottom: 18 }}>
-            Missing <code>NEXT_PUBLIC_API_URL</code> in this deployment.
-          </p>
-          <a href="/" style={{ color: "#a78bfa" }}>
-            Back to home
-          </a>
-        </div>
-      </main>
-    );
-  }
-
+  const baseUrl = getBaseUrl();
   const res = await fetch(
-    `${apiUrl}/api/stripe/checkout-session?sessionId=${encodeURIComponent(sessionId)}`,
+    `${baseUrl}/api/stripe/checkout-session?sessionId=${encodeURIComponent(sessionId)}`,
     { cache: "no-store" }
   );
   const data = (await res.json()) as
@@ -155,4 +137,3 @@ export default async function SuccessPage({ searchParams }: PageProps) {
     </main>
   );
 }
-

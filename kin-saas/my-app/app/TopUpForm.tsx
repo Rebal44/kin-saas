@@ -16,11 +16,6 @@ export function TopUpForm() {
     e.preventDefault();
     setError(null);
 
-    if (!apiUrl) {
-      setError("Missing NEXT_PUBLIC_API_URL configuration.");
-      return;
-    }
-
     const trimmed = email.trim().toLowerCase();
     if (!trimmed || !trimmed.includes("@")) {
       setError("Please enter a valid email.");
@@ -29,7 +24,11 @@ export function TopUpForm() {
 
     setIsLoading(true);
     try {
-      const res = await fetch(`${apiUrl}/api/stripe/create-topup-session`, {
+      const endpoint = apiUrl
+        ? `${apiUrl}/api/stripe/create-topup-session`
+        : "/api/stripe/create-topup-session";
+
+      const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: trimmed }),
@@ -49,7 +48,7 @@ export function TopUpForm() {
 
   return (
     <form onSubmit={onSubmit} style={{ width: "100%" }}>
-      <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
+      <div className="formRow" style={{ justifyContent: "flex-start" }}>
         <input
           type="email"
           inputMode="email"
@@ -57,43 +56,22 @@ export function TopUpForm() {
           placeholder="you@company.com"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          style={{
-            width: 320,
-            maxWidth: "100%",
-            padding: "14px 14px",
-            borderRadius: 12,
-            border: "1px solid #27272a",
-            background: "#0b0b0c",
-            color: "#fafafa",
-            outline: "none",
-            fontSize: 15,
-          }}
+          className="input"
         />
         <button
           type="submit"
           disabled={isLoading}
-          style={{
-            padding: "14px 18px",
-            borderRadius: 12,
-            border: "none",
-            cursor: isLoading ? "not-allowed" : "pointer",
-            background: "linear-gradient(135deg, #4f46e5, #9333ea)",
-            color: "white",
-            fontWeight: 600,
-            fontSize: 15,
-            minWidth: 170,
-            opacity: isLoading ? 0.8 : 1,
-          }}
+          className="button buttonPrimary"
+          style={{ minWidth: 170, opacity: isLoading ? 0.85 : 1 }}
         >
           {isLoading ? "Opening checkout…" : "Buy credits"}
         </button>
       </div>
       {error ? (
-        <div style={{ marginTop: 12, color: "#fca5a5", fontSize: 14 }}>
+        <div className="error" style={{ textAlign: "left" }}>
           {error}
         </div>
       ) : null}
     </form>
   );
 }
-
