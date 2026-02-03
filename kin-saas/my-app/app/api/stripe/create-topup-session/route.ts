@@ -1,5 +1,6 @@
 import { getStripe, getStripeTopupPriceId } from '@/lib/server/stripe';
 import { getSupabase } from '@/lib/server/supabase';
+import { assertDatabaseReady, formatDbError } from '@/lib/server/dbErrors';
 import { getRequestOrigin } from '@/lib/server/origin';
 
 export const runtime = 'nodejs';
@@ -9,6 +10,11 @@ export async function POST(request: Request) {
   try {
     const stripe = getStripe();
     const supabase = getSupabase();
+
+    const dbIssue = await assertDatabaseReady(supabase);
+    if (dbIssue) {
+      return Response.json({ error: dbIssue }, { status: 500 });
+    }
 
     const body = (await request.json()) as { email?: string };
     const email = body.email?.trim().toLowerCase();

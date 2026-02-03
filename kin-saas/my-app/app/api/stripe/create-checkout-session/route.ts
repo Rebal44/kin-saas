@@ -1,5 +1,6 @@
 import { getStripe, getStripePriceId } from '@/lib/server/stripe';
 import { getSupabase } from '@/lib/server/supabase';
+import { assertDatabaseReady, formatDbError } from '@/lib/server/dbErrors';
 import { getRequestOrigin } from '@/lib/server/origin';
 import { ensureCreditBalanceRow } from '@/lib/server/credits';
 
@@ -11,6 +12,11 @@ export async function POST(request: Request) {
     const stripe = getStripe();
     const priceId = getStripePriceId();
     const supabase = getSupabase();
+
+    const dbIssue = await assertDatabaseReady(supabase);
+    if (dbIssue) {
+      return Response.json({ error: dbIssue }, { status: 500 });
+    }
 
     const body = (await request.json()) as { email?: string; name?: string };
     const email = body.email?.trim().toLowerCase();
@@ -56,7 +62,10 @@ export async function POST(request: Request) {
       .single();
 
     if (upsertError || !user) {
-      return Response.json({ error: 'Failed to create user record' }, { status: 500 });
+      return Response.json(
+        { error: formatDbError(upsertError) || 'Failed to create user record' },
+        { status: 500 }
+      );
     }
 
     await ensureCreditBalanceRow(user.id);

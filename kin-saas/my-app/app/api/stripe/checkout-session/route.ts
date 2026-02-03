@@ -1,5 +1,6 @@
 import { getStripe } from '@/lib/server/stripe';
 import { getSupabase } from '@/lib/server/supabase';
+import { assertDatabaseReady, formatDbError } from '@/lib/server/dbErrors';
 import { applyCreditTransaction, getMonthlyCredits } from '@/lib/server/credits';
 import { telegramGetMe } from '@/lib/server/telegram';
 
@@ -10,6 +11,11 @@ export async function GET(request: Request) {
   try {
     const stripe = getStripe();
     const supabase = getSupabase();
+
+    const dbIssue = await assertDatabaseReady(supabase);
+    if (dbIssue) {
+      return Response.json({ error: dbIssue }, { status: 500 });
+    }
 
     const { searchParams } = new URL(request.url);
     const sessionId = searchParams.get('sessionId');
@@ -46,7 +52,10 @@ export async function GET(request: Request) {
       .single();
 
     if (userError || !user) {
-      return Response.json({ error: 'Failed to load user' }, { status: 500 });
+      return Response.json(
+        { error: formatDbError(userError) || 'Failed to load user' },
+        { status: 500 }
+      );
     }
 
     if (session.subscription && typeof session.subscription !== 'string') {
