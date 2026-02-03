@@ -1,16 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 
 export function CheckoutForm() {
   const [email, setEmail] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const apiUrl = useMemo(() => {
-    const value = process.env.NEXT_PUBLIC_API_URL;
-    return value?.replace(/\/$/, "") || "";
-  }, []);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -24,11 +19,7 @@ export function CheckoutForm() {
 
     setIsLoading(true);
     try {
-      const endpoint = apiUrl
-        ? `${apiUrl}/api/stripe/create-checkout-session`
-        : "/api/stripe/create-checkout-session";
-
-      const res = await fetch(endpoint, {
+      const res = await fetch("/api/stripe/create-checkout-session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: trimmed }),

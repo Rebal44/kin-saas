@@ -7,9 +7,6 @@ type PageProps = {
 };
 
 function getBaseUrl() {
-  const value = process.env.NEXT_PUBLIC_API_URL;
-  if (value) return value.replace(/\/$/, "");
-
   const h = headers();
   const proto = h.get("x-forwarded-proto") || "https";
   const host = h.get("x-forwarded-host") || h.get("host") || "";
