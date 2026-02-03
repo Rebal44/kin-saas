@@ -1,7 +1,7 @@
 # Kin SaaS Build Plan
 
 ## Overview
-Building Kin: The "Easy Button" for AI — a consumer-facing wrapper around OpenClaw.
+Building Kin: The "Easy Button" for AI — Telegram-first.
 
 ## Architecture
 - **Frontend:** Next.js 14 + Tailwind + shadcn/ui
@@ -18,7 +18,7 @@ Building Kin: The "Easy Button" for AI — a consumer-facing wrapper around Open
 3. User auth (Clerk)
 4. Dashboard with QR code for bot connection
 5. Webhook handlers for WhatsApp/Telegram
-6. Message relay system to OpenClaw
+6. Message relay system to the AI backend
 7. Admin panel for monitoring
 
 ## Database Schema
@@ -36,7 +36,7 @@ Building Kin: The "Easy Button" for AI — a consumer-facing wrapper around Open
 - NEXT_PUBLIC_STRIPE_PRICE_ID
 - WHATSAPP_API_KEY (for bot)
 - TELEGRAM_BOT_TOKEN (for bot)
-- OPENCLAW_API_KEY (for relay)
+- KIN_AI_API_KEY (for relay)
 
 ## Build Order
 1. Initialize Next.js project with shadcn

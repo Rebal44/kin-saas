@@ -1,13 +1,14 @@
 # Kin SaaS
 
-The "Easy Button" for AI - A consumer-facing wrapper around OpenClaw.
+The "Easy Button" for AI - Telegram-first.
 
 ## Features
 
 - **Landing Page**: Modern, clean design showcasing Kin's value proposition
 - **Authentication**: Secure user auth powered by Clerk
 - **Stripe Integration**: $29/month subscription with customer portal
-- **Dashboard**: QR code connection for WhatsApp/Telegram bots
+- **Connect Telegram**: One-click deep link
+- **Top Up**: Optional credits purchase page
 - **Database**: Supabase PostgreSQL for data persistence
 
 ## Tech Stack

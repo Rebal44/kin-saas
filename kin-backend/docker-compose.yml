@@ -18,8 +18,9 @@ services:
       - WHATSAPP_VERIFY_TOKEN=${WHATSAPP_VERIFY_TOKEN}
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
       - TELEGRAM_WEBHOOK_SECRET=${TELEGRAM_WEBHOOK_SECRET}
-      - OPENCLAW_API_URL=${OPENCLAW_API_URL:-http://host.docker.internal:18789}
-      - OPENCLAW_API_KEY=${OPENCLAW_API_KEY}
+      - KIN_AI_API_KEY=${KIN_AI_API_KEY}
+      - KIN_AI_API_URL=${KIN_AI_API_URL:-https://api.moonshot.ai/v1}
+      - KIN_AI_MODEL=${KIN_AI_MODEL:-kimi-k2.5}
       - LOG_LEVEL=${LOG_LEVEL:-info}
     restart: unless-stopped
     healthcheck:

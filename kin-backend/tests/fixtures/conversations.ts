@@ -224,8 +224,8 @@ export const testMessageContent = {
   code: '```javascript\nconsole.log("Hello");\n```',
 };
 
-// OpenClaw relay responses
-export const mockOpenClawResponses = {
+// Kin AI relay responses
+export const mockKinAiResponses = {
   success: {
     message: 'I\'d be happy to help with that! Here\'s what I can do...',
     metadata: {

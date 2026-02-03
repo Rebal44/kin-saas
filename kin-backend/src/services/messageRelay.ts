@@ -1,7 +1,9 @@
 import { logger } from '../utils';
-import { openClawRelayService } from './openclaw';
+import { kinAiRelayService } from './kinAi';
 import { whatsAppService } from './whatsapp';
 import { telegramService } from './telegram';
+import { debitCredits } from './credits';
+import { syncSubscriptionStatusForUser } from './subscriptionSync';
 import {
   saveIncomingMessage,
   saveOutgoingMessage,
@@ -12,6 +14,7 @@ import {
   addConversationMessage,
   getConversationHistory,
   markConnectionAsConnected,
+  getUserById,
 } from '../db';
 import {
   Platform,
@@ -20,6 +23,11 @@ import {
   IncomingMessage,
   BotConnection,
 } from '../types';
+
+const FRONTEND_URL =
+  process.env.FRONTEND_URL ||
+  process.env.NEXT_PUBLIC_APP_URL ||
+  'https://your-domain.com';
 
 export class MessageRelayService {
   // Process incoming WhatsApp message
@@ -54,7 +62,7 @@ export class MessageRelayService {
         // Send welcome message asking to connect via dashboard
         await whatsAppService.sendTextMessage(
           from,
-          'Welcome to Kin! 👋\n\nTo start using me, please connect your account at:\nhttps://kin.ai/dashboard\n\nScan the QR code there to link this WhatsApp number.'
+          `Welcome!\n\nTo start using this, connect your account on:\n${FRONTEND_URL}\n\n(You’ll subscribe first, then connect WhatsApp/Telegram from there.)`
         );
         return;
       }
@@ -63,7 +71,7 @@ export class MessageRelayService {
       if (!connection.is_connected) {
         await whatsAppService.sendTextMessage(
           from,
-          'Please complete your connection at https://kin.ai/dashboard to start chatting.'
+          `Please finish connecting your account from ${FRONTEND_URL} to start chatting.`
         );
         return;
       }
@@ -144,12 +152,13 @@ export class MessageRelayService {
         incoming_message_id: savedMessage.id,
       });
 
-      // Relay to OpenClaw
-      const response = await openClawRelayService.sendMessage({
+      // Relay to Kimi (Kin AI)
+      const response = await kinAiRelayService.sendMessage({
         message: content,
         user_id: connection.user_id,
         conversation_id: conversation.id,
         platform: 'whatsapp',
+        history: [],
         metadata: {
           original_message_type: messageType,
           phone_number: from,
@@ -183,7 +192,7 @@ export class MessageRelayService {
       // Check for /start command with connection token
       const startCommand = telegramService.isStartCommand(message);
       if (startCommand.isCommand && startCommand.param) {
-        await this.handleTelegramConnection(chatId, startCommand.param);
+        await this.handleTelegramConnection(chatId, startCommand.param, from.username);
         return;
       }
 
@@ -194,7 +203,7 @@ export class MessageRelayService {
         logger.warn(`No connection found for Telegram chat ${chatId}`);
         await telegramService.sendTextMessage(
           chatId,
-          'Welcome to Kin! 👋\n\nTo start using me, please connect your account at:\nhttps://kin.ai/dashboard\n\nClick the Telegram link there to connect.'
+          `Welcome!\n\nTo start using this, subscribe + connect Telegram here:\n${FRONTEND_URL}\n\nAfter that, come back and message me again.`
         );
         return;
       }
@@ -202,7 +211,50 @@ export class MessageRelayService {
       if (!connection.is_connected) {
         await telegramService.sendTextMessage(
           chatId,
-          'Please complete your connection at https://kin.ai/dashboard to start chatting.'
+          'Please finish connecting your account from the website first (you need to subscribe, then click “Connect Telegram”).'
+        );
+        return;
+      }
+
+      // Subscription gate
+      const user = await getUserById(connection.user_id);
+      const allowedStatuses = new Set(['active', 'trialing']);
+      if (!user) {
+        await telegramService.sendTextMessage(
+          chatId,
+          'Your account isn’t ready yet. Please subscribe on the website, then try again.'
+        );
+        return;
+      }
+
+      let subscriptionStatus = user.subscription_status;
+
+      if (!allowedStatuses.has(subscriptionStatus)) {
+        // Best-effort: Stripe webhooks can arrive a bit later; try a quick sync once.
+        subscriptionStatus = await syncSubscriptionStatusForUser(connection.user_id);
+        if (!allowedStatuses.has(subscriptionStatus)) {
+          await telegramService.sendTextMessage(
+            chatId,
+            'Your subscription is not active yet. If you just paid, wait ~30 seconds and try again.'
+          );
+          return;
+        }
+      }
+
+      // Credits gate (simple: 1 credit per inbound message)
+      const creditsPerMessage = Number(process.env.CREDITS_PER_MESSAGE || 1);
+      const debit = await debitCredits({
+        userId: connection.user_id,
+        amount: creditsPerMessage,
+        reason: 'telegram_message',
+        reference: `telegram:inbound:${chatId}:${message.message_id}`,
+        metadata: { platform: 'telegram', chatId, messageId: message.message_id },
+      });
+
+      if (!debit.ok) {
+        await telegramService.sendTextMessage(
+          chatId,
+          `You’re out of credits. Top up here: ${FRONTEND_URL}/top-up`
         );
         return;
       }
@@ -267,17 +319,17 @@ export class MessageRelayService {
       // Get conversation history for context
       const history = await getConversationHistory(conversation.id, 10);
 
-      // Relay to OpenClaw
-      const response = await openClawRelayService.sendMessage({
+      // Relay to Kin AI backend
+      const response = await kinAiRelayService.sendMessage({
         message: content,
         user_id: connection.user_id,
         conversation_id: conversation.id,
         platform: 'telegram',
+        history: history.map((h) => ({ role: h.role, content: h.content })),
         metadata: {
           original_message_type: messageType,
           chat_id: chatId,
           username: from.username,
-          history: history.map((h) => ({ role: h.role, content: h.content })),
         },
       });
 
@@ -298,18 +350,47 @@ export class MessageRelayService {
   }
 
   // Handle Telegram connection via /start command
-  private async handleTelegramConnection(chatId: string, token: string): Promise<void> {
+  private async handleTelegramConnection(chatId: string, token: string, username?: string): Promise<void> {
     logger.info(`Processing Telegram connection for chat ${chatId} with token ${token}`);
 
-    // In a real implementation, we would:
-    // 1. Validate the token against pending connections
-    // 2. Update the connection with the chat_id
-    // 3. Mark as connected
+    const connection = await getBotConnectionById(token);
 
-    // For now, send a welcome message
+    if (!connection) {
+      await telegramService.sendTextMessage(
+        chatId,
+        'That connect link is invalid or expired. Please generate a new Telegram connect link from the website and try again.'
+      );
+      return;
+    }
+
+    if (connection.platform !== 'telegram') {
+      await telegramService.sendTextMessage(
+        chatId,
+        'That connect link is for a different platform. Please generate a Telegram connect link and try again.'
+      );
+      return;
+    }
+
+    // Mark as connected and bind this chat_id to the connection token
+    const updated = await updateBotConnection(connection.id, {
+      is_connected: true,
+      connected_at: new Date().toISOString(),
+      chat_id: chatId,
+      username: username || connection.username,
+      platform_user_id: chatId,
+    } as any);
+
+    if (!updated) {
+      await telegramService.sendTextMessage(
+        chatId,
+        'I couldn’t complete the connection due to a server error. Please try again in a minute.'
+      );
+      return;
+    }
+
     await telegramService.sendTextMessage(
       chatId,
-      '✅ Connected successfully!\n\nI\'m Kin, your AI assistant. How can I help you today?'
+      '✅ Connected successfully!\n\nYou’re all set. Send me a message any time.'
     );
   }
 

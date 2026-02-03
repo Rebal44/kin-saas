@@ -2,9 +2,18 @@
 export interface User {
   id: string;
   email: string;
-  clerk_id: string;
+  clerk_id: string | null;
   stripe_customer_id?: string;
-  subscription_status: 'active' | 'inactive' | 'trialing' | 'canceled' | 'past_due';
+  subscription_status:
+    | 'inactive'
+    | 'trialing'
+    | 'active'
+    | 'past_due'
+    | 'canceled'
+    | 'unpaid'
+    | 'incomplete'
+    | 'incomplete_expired'
+    | 'paused';
   created_at: string;
   updated_at: string;
 }
@@ -200,16 +209,17 @@ export interface TelegramCallbackQuery {
   data?: string;
 }
 
-// OpenClaw Relay Types
-export interface OpenClawRequest {
+// Kin AI Relay Types
+export interface KinAiRequest {
   message: string;
   user_id: string;
   conversation_id: string;
   platform: Platform;
+  history?: Array<{ role: 'user' | 'assistant'; content: string }>;
   metadata?: Record<string, unknown>;
 }
 
-export interface OpenClawResponse {
+export interface KinAiResponse {
   message: string;
   metadata?: Record<string, unknown>;
   error?: string;
