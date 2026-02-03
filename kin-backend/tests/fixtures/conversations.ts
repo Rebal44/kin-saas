@@ -230,7 +230,7 @@ export const mockKinAiResponses = {
     message: 'I\'d be happy to help with that! Here\'s what I can do...',
     metadata: {
       tokens_used: 150,
-      model: 'gpt-4',
+      model: 'kimi-k2.5',
     },
   },
   error: {

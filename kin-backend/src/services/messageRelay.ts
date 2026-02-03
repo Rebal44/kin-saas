@@ -1,6 +1,5 @@
 import { logger } from '../utils';
 import { kinAiRelayService } from './kinAi';
-import { whatsAppService } from './whatsapp';
 import { telegramService } from './telegram';
 import { debitCredits } from './credits';
 import { syncSubscriptionStatusForUser } from './subscriptionSync';
@@ -29,12 +28,18 @@ const FRONTEND_URL =
   process.env.NEXT_PUBLIC_APP_URL ||
   'https://your-domain.com';
 
+async function getWhatsAppService() {
+  const mod = await import('./whatsapp');
+  return mod.whatsAppService;
+}
+
 export class MessageRelayService {
   // Process incoming WhatsApp message
   async processWhatsAppMessage(
     message: WhatsAppMessage,
     phoneNumberId: string
   ): Promise<void> {
+    const whatsAppService = await getWhatsAppService();
     const from = message.from;
     const messageId = message.id;
 
@@ -400,6 +405,7 @@ export class MessageRelayService {
     to: string,
     message: string
   ): Promise<void> {
+    const whatsAppService = await getWhatsAppService();
     // Save outgoing message
     const savedOutgoing = await saveOutgoingMessage({
       connection_id: connection.id,
@@ -495,6 +501,7 @@ export class MessageRelayService {
         'Just send me a message and I\'ll do my best to help.';
 
       if (platform === 'whatsapp' && connection.phone_number) {
+        const whatsAppService = await getWhatsAppService();
         await whatsAppService.sendTextMessage(connection.phone_number, welcomeMessage);
       } else if (platform === 'telegram' && connection.chat_id) {
         await telegramService.sendTextMessage(connection.chat_id, welcomeMessage);
