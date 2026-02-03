@@ -53,7 +53,7 @@ export async function POST(request: Request) {
   if (!connection?.user_id) {
     await telegramSendMessage(
       chatId,
-      `Welcome!\n\nTo start using Kin, subscribe and connect Telegram here:\n${origin}\n\nAfter that, come back and message me again.`
+      `Welcome!\n\nTo start using Kin:\n1) Subscribe here: ${origin}\n2) Then connect Telegram here: ${origin}/connect\n\nAfter that, come back and message me again.`
     );
     return new Response('ok', { status: 200 });
   }

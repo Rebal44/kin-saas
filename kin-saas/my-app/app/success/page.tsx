@@ -50,7 +50,7 @@ export default async function SuccessPage({ searchParams }: PageProps) {
     { cache: "no-store" }
   );
   const data = (await res.json()) as
-    | { deepLink: string; botUsername: string }
+    | { deepLink: string; appLink: string; botUsername: string }
     | { error?: string };
 
   if (!res.ok || !("deepLink" in data)) {
@@ -106,7 +106,7 @@ export default async function SuccessPage({ searchParams }: PageProps) {
           </p>
 
           <a
-            href={data.deepLink}
+            href={data.appLink}
             style={{
               display: "inline-block",
               padding: "14px 18px",
@@ -117,11 +117,17 @@ export default async function SuccessPage({ searchParams }: PageProps) {
               fontWeight: 700,
             }}
           >
-            Open Telegram
+            Open Telegram app
           </a>
 
           <div style={{ marginTop: 14, color: "#71717a", fontSize: 13 }}>
             Bot: @{data.botUsername}
+          </div>
+
+          <div style={{ marginTop: 10, fontSize: 13 }}>
+            <a href={data.deepLink} style={{ color: "#a78bfa" }} target="_blank" rel="noreferrer">
+              Open in browser instead
+            </a>
           </div>
         </div>
 
