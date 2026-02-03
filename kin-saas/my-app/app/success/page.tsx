@@ -50,7 +50,7 @@ export default async function SuccessPage({ searchParams }: PageProps) {
     { cache: "no-store" }
   );
   const data = (await res.json()) as
-    | { deepLink: string; appLink: string; botUsername: string }
+    | { deepLink: string; appLink: string; botUsername: string; startCommand: string }
     | { error?: string };
 
   if (!res.ok || !("deepLink" in data)) {
@@ -128,6 +128,15 @@ export default async function SuccessPage({ searchParams }: PageProps) {
             <a href={data.deepLink} style={{ color: "#a78bfa" }} target="_blank" rel="noreferrer">
               Open in browser instead
             </a>
+          </div>
+
+          <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid #27272a" }}>
+            <div style={{ color: "#a1a1aa", fontSize: 13, marginBottom: 8 }}>
+              If Telegram doesn’t open or “Start bot” does nothing, send this message to the bot:
+            </div>
+            <code style={{ display: "inline-block", padding: "8px 10px", borderRadius: 10, background: "#0b0b0c", border: "1px solid #27272a" }}>
+              {data.startCommand}
+            </code>
           </div>
         </div>
 

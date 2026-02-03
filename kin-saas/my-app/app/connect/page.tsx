@@ -4,7 +4,7 @@ import { useState } from "react";
 
 type Result =
   | null
-  | { deepLink: string; appLink: string; botUsername: string }
+  | { deepLink: string; appLink: string; botUsername: string; startCommand: string }
   | { error: string };
 
 export default function ConnectPage() {
@@ -37,6 +37,7 @@ export default function ConnectPage() {
         deepLink: data.deepLink,
         appLink: data.appLink,
         botUsername: data.botUsername,
+        startCommand: data.startCommand,
       });
     } catch (err) {
       setResult({ error: err instanceof Error ? err.message : "Could not generate connect link." });
@@ -100,6 +101,32 @@ export default function ConnectPage() {
               <div className="finePrint">
                 After you tap Start, come back to Telegram and send any message like <code>hi</code>.
               </div>
+
+              <div style={{ marginTop: 12 }}>
+                <div style={{ color: "var(--muted)", fontSize: 13, marginBottom: 8 }}>
+                  If “Start bot” does nothing (Telegram Web sometimes), send this message to the bot:
+                </div>
+                <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+                  <code
+                    style={{
+                      display: "inline-block",
+                      padding: "8px 10px",
+                      borderRadius: 10,
+                      background: "#0b0b0c",
+                      border: "1px solid var(--border)",
+                    }}
+                  >
+                    {result.startCommand}
+                  </code>
+                  <button
+                    type="button"
+                    className="button buttonSoft"
+                    onClick={() => navigator.clipboard.writeText(result.startCommand)}
+                  >
+                    Copy
+                  </button>
+                </div>
+              </div>
             </div>
           ) : null}
         </div>
@@ -111,4 +138,3 @@ export default function ConnectPage() {
     </main>
   );
 }
-

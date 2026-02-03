@@ -50,15 +50,16 @@ export async function POST(request: Request) {
 
     const deepLink = `https://t.me/${botInfo.username}?start=${connection.id}`;
     const appLink = `tg://resolve?domain=${encodeURIComponent(botInfo.username)}&start=${encodeURIComponent(connection.id)}`;
+    const startCommand = `/start ${connection.id}`;
 
     return Response.json({
       connectionId: connection.id,
       botUsername: botInfo.username,
       deepLink,
       appLink,
+      startCommand,
     });
   } catch (error: any) {
     return Response.json({ error: error?.message || 'Failed to generate connect link' }, { status: 500 });
   }
 }
-
