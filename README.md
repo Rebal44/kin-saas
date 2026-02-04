@@ -12,11 +12,10 @@ A simple paid Telegram AI wrapper.
 
 ## Repository layout (current source of truth)
 
-- `kin-saas/my-app` — website (Next.js)
-- `kin-backend` — API (Express): Stripe checkout + Stripe webhooks + Telegram webhook + credits
+- `kin-saas/my-app` — Next.js app (website + API routes)
 - `supabase/migrations` — database migrations
 
-`kin/` is legacy/unused right now and should be treated as archival.
+`kin-backend/` and `kin/` are legacy/unused right now and should be treated as archival.
 
 ## Local development
 
@@ -27,16 +26,7 @@ Prereqs: Node.js 20+, Supabase project, Stripe account, Telegram bot.
 - Create a Supabase project
 - Apply migrations in `supabase/migrations` (via Supabase CLI or SQL editor)
 
-2) Backend API
-
-```bash
-cd kin-backend
-cp .env.example .env
-npm install
-npm run dev
-```
-
-3) Website
+2) App (Next.js)
 
 ```bash
 cd kin-saas/my-app
@@ -47,15 +37,13 @@ npm run dev
 
 ## Deploy (fast path)
 
-Create two Vercel projects from the same repo:
+Create one Vercel project from this repo:
 
-- Web project root: `kin-saas/my-app`
-- API project root: `kin-backend`
+- Root Directory: `kin-saas/my-app`
 
-Then:
+Then set:
 
-- Point your Telegram bot webhook to the API project: `POST /api/webhooks/telegram`
-- Point Stripe webhooks to the API project: `POST /api/webhooks/stripe`
-- Set the website env `NEXT_PUBLIC_API_URL` to your API project URL
+- Stripe webhook destination: `https://YOUR_DOMAIN/api/webhooks/stripe`
+- Telegram webhook: open `https://YOUR_DOMAIN/api/webhooks/telegram/set-webhook`
 
 See `DEPLOYMENT.md` for the full checklist.

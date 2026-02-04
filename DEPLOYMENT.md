@@ -1,53 +1,39 @@
-# Deployment (Fast Launch Checklist)
+# Deployment (Vercel + Supabase + Stripe + Telegram)
 
-This repo currently deploys as **two services**:
+This project deploys as **one** Next.js app:
 
-- **Website (Next.js):** `kin-saas/my-app`
-- **API (Express):** `kin-backend`
+- **App (website + API routes):** `kin-saas/my-app`
 
-The API handles Stripe + Telegram + database writes. The website is just the marketing + checkout + “connect Telegram” UI.
-
----
-
-## 1) Create required accounts
-
-- Supabase (Postgres)
-- Stripe
-- Telegram bot (via @BotFather)
+Stripe + Telegram webhooks are handled by Next.js API routes in the same app.
 
 ---
 
-## 2) Supabase setup
+## 1) Supabase (database)
 
 1. Create a new Supabase project
 2. Apply migrations in `supabase/migrations/`
-   - If using the CLI: link your project and run `supabase db push`
-   - Or paste the SQL into Supabase SQL editor in order (001 → 003)
-3. Copy these values (Project Settings → API):
+   - Use Supabase SQL editor or the CLI (`supabase db push`)
+3. Copy these values (Supabase → Project Settings → API):
    - `SUPABASE_URL`
    - `SUPABASE_ANON_KEY`
    - `SUPABASE_SERVICE_ROLE_KEY`
 
 ---
 
-## 3) Stripe setup
+## 2) Stripe (payments)
 
-1. Create a product + recurring price in Stripe:
-   - Name: “Kin”
-   - Price: **$29 / month**
-   - Trial: **7 days**
-2. Copy:
-   - `STRIPE_SECRET_KEY`
-   - `STRIPE_PRICE_ID`
-   - `STRIPE_TOPUP_PRICE_ID` (one‑time price for credits)
-
-3. Create a **one‑time** product for credits (Top Up):
-   - Example name: “Kin Credits”
-   - Price: whatever you want (e.g. $10)
+1. Create a subscription product/price:
+   - Name: `Kin`
+   - Price: `$29 / month`
+   - Trial: `7 days`
+   - Copy the price id → `STRIPE_PRICE_ID`
+2. Create a one‑time top‑up product/price (credits):
+   - Example: `$10`
    - Copy the price id → `STRIPE_TOPUP_PRICE_ID`
-
-3. Create a webhook endpoint pointing to your **API** domain:
-   - URL: `https://YOUR_API_DOMAIN/api/webhooks/stripe`
+3. Copy:
+   - `STRIPE_SECRET_KEY`
+4. Create a webhook endpoint (Stripe Dashboard → Developers → Webhooks):
+   - Endpoint URL: `https://YOUR_DOMAIN/api/webhooks/stripe`
    - Events:
      - `checkout.session.completed`
      - `invoice.paid`
@@ -56,39 +42,41 @@ The API handles Stripe + Telegram + database writes. The website is just the mar
      - `customer.subscription.updated`
      - `customer.subscription.deleted`
      - `customer.subscription.trial_will_end`
-4. Copy the webhook signing secret:
-   - `STRIPE_WEBHOOK_SECRET`
+   - Copy the signing secret → `STRIPE_WEBHOOK_SECRET`
 
 ---
 
-## 4) Telegram setup
+## 3) Telegram (bot)
 
-1. Create a Telegram bot in @BotFather and copy:
+1. Create a bot via `@BotFather`
+2. Copy:
    - `TELEGRAM_BOT_TOKEN`
-2. (Optional) Set a webhook secret:
-   - `TELEGRAM_WEBHOOK_SECRET` (any random string; can be left blank to simplify)
-3. Set the webhook to your **API** domain:
-   - URL: `https://YOUR_API_DOMAIN/api/webhooks/telegram`
-   - If you set a secret, Telegram will send header `x-telegram-bot-api-secret-token` and it must match `TELEGRAM_WEBHOOK_SECRET`
-
-The API also exposes `POST /api/webhooks/telegram/set-webhook` for convenience.
+3. Optional (recommended): set a webhook secret:
+   - `TELEGRAM_WEBHOOK_SECRET` (any random string)
 
 ---
 
-## 5) Deploy to Vercel (two projects)
+## 4) Moonshot (Kimi) (AI)
 
-If you’re not technical, follow this exactly. You’ll do this **twice** (one for Web, one for API).
+Create an API key and copy:
 
-### A) API project
+- `MOONSHOT_API_KEY` (or `KIN_AI_API_KEY`)
 
-1. Create a Vercel project with root directory `kin-backend`
-   - Go to Vercel dashboard
-   - Click **Add New…** → **Project**
-   - Under **Import Git Repository**, pick this repo
-   - In **Configure Project**:
-     - Set **Root Directory** to `kin-backend`
-     - Click **Deploy**
-2. Set environment variables:
+Defaults used by the app:
+
+- `KIN_AI_API_URL=https://api.moonshot.ai/v1`
+- `KIN_AI_MODEL=kimi-k2.5`
+
+---
+
+## 5) Deploy to Vercel (one project)
+
+1. Vercel Dashboard → **Add New…** → **Project**
+2. Import your GitHub repo
+3. In **Configure Project**:
+   - **Root Directory**: `kin-saas/my-app`
+   - Framework: **Next.js**
+4. Add environment variables (Project → Settings → Environment Variables):
    - `SUPABASE_URL`
    - `SUPABASE_ANON_KEY`
    - `SUPABASE_SERVICE_ROLE_KEY`
@@ -97,53 +85,37 @@ If you’re not technical, follow this exactly. You’ll do this **twice** (one 
    - `STRIPE_PRICE_ID`
    - `STRIPE_TOPUP_PRICE_ID`
    - `TELEGRAM_BOT_TOKEN`
-   - `TELEGRAM_WEBHOOK_SECRET` (optional; leave blank to simplify setup)
-   - `FRONTEND_URL` (your web domain, e.g. `https://YOUR_WEB_DOMAIN`)
-   - `KIN_AI_API_KEY` (required for real answers)
-   - `KIN_AI_API_URL` (optional; default `https://api.moonshot.ai/v1`)
-   - `KIN_AI_MODEL` (optional; default `kimi-k2.5`)
-   - `MONTHLY_CREDITS` (optional; default 10000)
-   - `CREDITS_PER_MESSAGE` (optional; default 1)
-   - `TOPUP_CREDITS` (optional; default 5000)
-
-Deploy and copy your API URL (e.g. `https://YOUR_API_DOMAIN`).
-
-### B) Web project
-
-1. Create a Vercel project with root directory `kin-saas/my-app`
-   - Vercel dashboard → **Add New…** → **Project**
-   - Import the same git repo again
-   - In **Configure Project**:
-     - Set **Root Directory** to `kin-saas/my-app`
-     - Framework should show **Next.js**
-     - Click **Deploy**
-2. Set environment variables:
-   - `NEXT_PUBLIC_APP_URL` (your web domain)
-   - `NEXT_PUBLIC_API_URL` (your API domain)
-
-Deploy and copy your web URL (e.g. `https://YOUR_WEB_DOMAIN`).
+   - `TELEGRAM_WEBHOOK_SECRET` (optional)
+   - `MOONSHOT_API_KEY` (or `KIN_AI_API_KEY`)
+   - `KIN_AI_API_URL` (optional)
+   - `KIN_AI_MODEL` (optional)
+   - `MONTHLY_CREDITS` (optional)
+   - `CREDITS_PER_MESSAGE` (optional)
+   - `TOPUP_CREDITS` (optional)
+   - `NEXT_PUBLIC_APP_URL` (optional, but recommended: `https://YOUR_DOMAIN`)
+5. Deploy
 
 ---
 
-## 6) Final wiring
+## 6) Set Telegram webhook (one click)
 
-- In Stripe webhooks, confirm the endpoint points to the **API** domain.
-- In Telegram webhook, confirm it points to the **API** domain.
-- In the web project env vars, confirm `NEXT_PUBLIC_API_URL` is the **API** domain.
+After your Vercel deployment is live, open:
 
-### Telegram webhook (easy way)
+- `https://YOUR_DOMAIN/api/webhooks/telegram/set-webhook`
 
-If you left `TELEGRAM_WEBHOOK_SECRET` blank, set the Telegram webhook by pasting this into your browser (replace values):
+To verify, open:
 
-`https://api.telegram.org/bot<YOUR_TELEGRAM_BOT_TOKEN>/setWebhook?url=https://YOUR_API_DOMAIN/api/webhooks/telegram`
+- `https://YOUR_DOMAIN/api/webhooks/telegram/webhook-info`
 
 ---
 
-## 7) Security note (important)
+## 7) Optional: Enable OpenClaw gateway mode
 
-If you ever committed real Stripe keys / DB URLs into git, **rotate them**:
+If you run an OpenClaw Gateway separately, set these Vercel env vars:
 
-- Stripe: roll API keys / restricted keys and webhook secret
-- Supabase: rotate database password / service role key if exposed
+- `OPENCLAW_GATEWAY_URL`
+- `OPENCLAW_GATEWAY_TOKEN`
+- `OPENCLAW_AGENT_ID` (optional; default `main`)
 
-This repo had leaked example credentials earlier and they were scrubbed, but rotation is still recommended.
+When set, Kin routes Telegram messages through OpenClaw.
+
