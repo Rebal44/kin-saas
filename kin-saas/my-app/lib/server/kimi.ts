@@ -4,7 +4,7 @@ export async function kimiRespond(params: {
   message: string;
   history?: Array<{ role: 'user' | 'assistant'; content: string }>;
 }): Promise<string> {
-  const apiKey = process.env.KIN_AI_API_KEY || '';
+  const apiKey = (process.env.KIN_AI_API_KEY || '').trim();
   const model = process.env.KIN_AI_MODEL || 'kimi-k2.5';
   const baseUrl = process.env.KIN_AI_API_URL || DEFAULT_KIMI_API_URL;
 
@@ -27,7 +27,9 @@ export async function kimiRespond(params: {
     method: 'POST',
     headers: {
       'content-type': 'application/json',
+      // Moonshot/Kimi is OpenAI-compatible; different gateways sometimes expect different headers.
       authorization: `Bearer ${apiKey}`,
+      'x-api-key': apiKey,
     },
     body: JSON.stringify({
       model,
