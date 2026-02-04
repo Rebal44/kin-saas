@@ -16,7 +16,11 @@ function safeJsonStringify(value: unknown) {
 }
 
 async function fetchJson(url: string): Promise<any> {
-  const res = await fetch(url, { cache: 'no-store' });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8000);
+  const res = await fetch(url, { cache: 'no-store', signal: controller.signal }).finally(() => {
+    clearTimeout(timeout);
+  });
   const text = await res.text();
   let data: any = null;
   try {
@@ -66,6 +70,7 @@ export const TOOLS: ToolDefinition[] = [
     },
     execute: async (args: any) => {
       const location = String(args?.location || '').trim();
+      if (location.length > 120) return { ok: false, error: 'location is too long' };
       if (!location) return { ok: false, error: 'location is required' };
 
       try {
@@ -114,6 +119,7 @@ export const TOOLS: ToolDefinition[] = [
     },
     execute: async (args: any) => {
       const timezone = String(args?.timezone || '').trim();
+      if (timezone.length > 80) return { ok: false, error: 'timezone is too long' };
       if (!timezone) return { ok: false, error: 'timezone is required' };
       try {
         const now = new Date();
@@ -157,4 +163,3 @@ export async function executeToolByName(
   if (result.ok) return { ok: true, content: result.content };
   return { ok: false, content: safeJsonStringify({ ok: false, error: result.error }) };
 }
-
