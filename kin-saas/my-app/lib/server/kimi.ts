@@ -52,7 +52,9 @@ export async function kimiRespond(params: {
   for (const baseUrl of baseUrls) {
     // First attempt: configured model
     const first = await callOpenAIChatCompletions({ baseUrl, apiKey, model, messages });
-    if (first.ok) return first.text;
+    if (first.ok) {
+      return first.text;
+    }
 
     lastError = { status: first.status, message: first.message, baseUrl };
     if (first.status === 401) continue;
@@ -65,7 +67,9 @@ export async function kimiRespond(params: {
         model: KIMI_CODE_FALLBACK_MODEL,
         messages,
       });
-      if (fallback.ok) return fallback.text;
+      if (fallback.ok) {
+        return fallback.text;
+      }
       lastError = { status: fallback.status, message: fallback.message, baseUrl };
       if (fallback.status === 401) continue;
     }
