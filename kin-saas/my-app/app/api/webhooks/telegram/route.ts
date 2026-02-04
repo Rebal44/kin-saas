@@ -1,6 +1,6 @@
 import { getSupabase } from '@/lib/server/supabase';
 import { applyCreditTransaction, debitCredits, getCreditBalance, getMonthlyCredits } from '@/lib/server/credits';
-import { kimiRespond } from '@/lib/server/kimi';
+import { agentRespond } from '@/lib/server/agent';
 import { getRequestOrigin } from '@/lib/server/origin';
 import { parseStartCommand, telegramSendMessage } from '@/lib/server/telegram';
 import { getStripe } from '@/lib/server/stripe';
@@ -191,7 +191,12 @@ export async function POST(request: Request) {
   }
 
   const history = conversationId ? await getConversationHistory(conversationId, 10) : [];
-  const reply = await kimiRespond({ message: text, history });
+  const reply = await agentRespond({
+    message: text,
+    history,
+    userId: user.id,
+    sessionKey: connection.id,
+  });
 
   const sentOk = await telegramSendMessage(chatId, reply);
 
