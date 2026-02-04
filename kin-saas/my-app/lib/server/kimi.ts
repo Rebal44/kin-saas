@@ -56,29 +56,27 @@ export async function kimiRespond(params: {
       return first.text;
     }
 
-    if (!first.ok) {
-      lastError = { status: first.status, message: first.message, baseUrl };
-      if (first.status === 401) continue;
+    const firstError = getErrorInfo(first);
+    lastError = { status: firstError.status, message: firstError.message, baseUrl };
+    if (firstError.status === 401) continue;
 
-      // Kimi Code uses different model ids; if we got a model error, retry with a safe default.
-      if (first.status === 404 || /model/i.test(first.message)) {
-        const fallback = await callOpenAIChatCompletions({
-          baseUrl,
-          apiKey,
-          model: KIMI_CODE_FALLBACK_MODEL,
-          messages,
-        });
-        if (fallback.ok) {
-          return fallback.text;
-        }
-        if (!fallback.ok) {
-          lastError = { status: fallback.status, message: fallback.message, baseUrl };
-          if (fallback.status === 401) continue;
-        }
+    // Kimi Code uses different model ids; if we got a model error, retry with a safe default.
+    if (firstError.status === 404 || /model/i.test(firstError.message)) {
+      const fallback = await callOpenAIChatCompletions({
+        baseUrl,
+        apiKey,
+        model: KIMI_CODE_FALLBACK_MODEL,
+        messages,
+      });
+      if (fallback.ok) {
+        return fallback.text;
       }
-
-      return `Sorry, I had trouble processing that (${lastError.message}, HTTP ${lastError.status}).`;
+      const fallbackError = getErrorInfo(fallback);
+      lastError = { status: fallbackError.status, message: fallbackError.message, baseUrl };
+      if (fallbackError.status === 401) continue;
     }
+
+    return `Sorry, I had trouble processing that (${lastError.message}, HTTP ${lastError.status}).`;
   }
 
   if (lastError) {
@@ -121,4 +119,13 @@ async function callOpenAIChatCompletions(params: {
   if (typeof text === 'string' && text.trim()) return { ok: true, text };
 
   return { ok: false, status: 502, message: 'No response text from AI' };
+}
+
+function getErrorInfo(
+  result: { ok: true; text: string } | { ok: false; status: number; message: string }
+): { status: number; message: string } {
+  if (!('status' in result)) {
+    return { status: 500, message: 'Unknown error' };
+  }
+  return { status: result.status, message: result.message };
 }
