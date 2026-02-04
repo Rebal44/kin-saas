@@ -4,7 +4,12 @@ export async function kimiRespond(params: {
   message: string;
   history?: Array<{ role: 'user' | 'assistant'; content: string }>;
 }): Promise<string> {
-  const apiKey = (process.env.KIN_AI_API_KEY || '').trim();
+  const apiKey = (
+    process.env.KIN_AI_API_KEY ||
+    process.env.MOONSHOT_API_KEY ||
+    process.env.KIMI_API_KEY ||
+    ''
+  ).trim();
   const model = process.env.KIN_AI_MODEL || 'kimi-k2.5';
   const baseUrl = process.env.KIN_AI_API_URL || DEFAULT_KIMI_API_URL;
 
@@ -42,7 +47,7 @@ export async function kimiRespond(params: {
   const data = (await res.json()) as any;
   if (!res.ok) {
     const msg = data?.error?.message || 'Kimi API error';
-    return `Sorry, I had trouble processing that (${msg}).`;
+    return `Sorry, I had trouble processing that (${msg}, HTTP ${res.status}).`;
   }
 
   const text = data?.choices?.[0]?.message?.content;
