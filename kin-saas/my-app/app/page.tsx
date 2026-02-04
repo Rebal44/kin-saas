@@ -73,6 +73,9 @@ export default function Home() {
           <a href="/top-up" style={{ fontSize: 13 }}>
             Top up credits
           </a>
+          <a href="/account" style={{ fontSize: 13 }}>
+            Account
+          </a>
         </div>
       </footer>
     </div>

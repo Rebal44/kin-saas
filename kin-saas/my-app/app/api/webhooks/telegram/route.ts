@@ -29,6 +29,7 @@ export async function POST(request: Request) {
 
   const fromUserId = String(message.from?.id || '');
   const username = message.from?.username ? String(message.from.username) : undefined;
+  const command = parseSimpleCommand(message.text);
 
   // Handle /start <token>
   const start = parseStartCommand(message.text);
@@ -71,6 +72,31 @@ export async function POST(request: Request) {
     await telegramSendMessage(
       chatId,
       `Your subscription is not active yet.\n\nIf you just paid, wait ~30 seconds and try again.\n\nManage: ${origin}`
+    );
+    return new Response('ok', { status: 200 });
+  }
+
+  // Non-billed commands
+  if (command === 'balance' || command === 'credits') {
+    try {
+      const balance = await getCreditBalance(user.id);
+      await telegramSendMessage(
+        chatId,
+        `Credits: ${balance}\n\nTop up: ${origin}/top-up\nAccount: ${origin}/account`
+      );
+    } catch {
+      await telegramSendMessage(chatId, `Couldn’t load your credits right now. Please try again in a minute.`);
+    }
+    return new Response('ok', { status: 200 });
+  }
+  if (command === 'topup' || command === 'top-up') {
+    await telegramSendMessage(chatId, `Top up: ${origin}/top-up`);
+    return new Response('ok', { status: 200 });
+  }
+  if (command === 'help') {
+    await telegramSendMessage(
+      chatId,
+      `Commands:\n/balance — show credits\n/topup — buy more credits\n\nOr just send a message to chat with Kin.`
     );
     return new Response('ok', { status: 200 });
   }
@@ -193,6 +219,16 @@ export async function POST(request: Request) {
   }
 
   return new Response('ok', { status: 200 });
+}
+
+function parseSimpleCommand(text?: string): string | null {
+  if (!text || typeof text !== 'string') return null;
+  const trimmed = text.trim();
+  if (!trimmed.startsWith('/')) return null;
+  const first = trimmed.split(/\s+/)[0] || '';
+  const withoutAt = first.replace(/@.+$/, '');
+  const name = withoutAt.replace(/^\//, '').trim().toLowerCase();
+  return name || null;
 }
 
 async function maybeRecoverMonthlyCredits(params: { userId: string; stripeCustomerId?: string }): Promise<boolean> {
