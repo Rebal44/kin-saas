@@ -56,25 +56,29 @@ export async function kimiRespond(params: {
       return first.text;
     }
 
-    lastError = { status: first.status, message: first.message, baseUrl };
-    if (first.status === 401) continue;
+    if (!first.ok) {
+      lastError = { status: first.status, message: first.message, baseUrl };
+      if (first.status === 401) continue;
 
-    // Kimi Code uses different model ids; if we got a model error, retry with a safe default.
-    if (first.status === 404 || /model/i.test(first.message)) {
-      const fallback = await callOpenAIChatCompletions({
-        baseUrl,
-        apiKey,
-        model: KIMI_CODE_FALLBACK_MODEL,
-        messages,
-      });
-      if (fallback.ok) {
-        return fallback.text;
+      // Kimi Code uses different model ids; if we got a model error, retry with a safe default.
+      if (first.status === 404 || /model/i.test(first.message)) {
+        const fallback = await callOpenAIChatCompletions({
+          baseUrl,
+          apiKey,
+          model: KIMI_CODE_FALLBACK_MODEL,
+          messages,
+        });
+        if (fallback.ok) {
+          return fallback.text;
+        }
+        if (!fallback.ok) {
+          lastError = { status: fallback.status, message: fallback.message, baseUrl };
+          if (fallback.status === 401) continue;
+        }
       }
-      lastError = { status: fallback.status, message: fallback.message, baseUrl };
-      if (fallback.status === 401) continue;
-    }
 
-    return `Sorry, I had trouble processing that (${lastError.message}, HTTP ${lastError.status}).`;
+      return `Sorry, I had trouble processing that (${lastError.message}, HTTP ${lastError.status}).`;
+    }
   }
 
   if (lastError) {
