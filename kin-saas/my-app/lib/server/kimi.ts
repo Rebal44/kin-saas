@@ -17,6 +17,19 @@ function normalizeApiKey(raw: string): string {
   return key;
 }
 
+function getTemperature(model: string, baseUrl: string): number {
+  const configured = process.env.KIN_AI_TEMPERATURE;
+  if (configured !== undefined && configured !== '') {
+    const value = Number(configured);
+    if (Number.isFinite(value)) return value;
+  }
+
+  // Moonshot's kimi-k2.5 currently rejects temperatures other than 1.
+  if (baseUrl.includes('moonshot') && model === 'kimi-k2.5') return 1;
+
+  return 0.6;
+}
+
 export async function kimiRespond(params: {
   message: string;
   history?: Array<{ role: 'user' | 'assistant'; content: string }>;
@@ -51,7 +64,13 @@ export async function kimiRespond(params: {
   let lastError: { status: number; message: string; baseUrl: string } | null = null;
   for (const baseUrl of baseUrls) {
     // First attempt: configured model
-    const first = await callOpenAIChatCompletions({ baseUrl, apiKey, model, messages });
+    const first = await callOpenAIChatCompletions({
+      baseUrl,
+      apiKey,
+      model,
+      messages,
+      temperature: getTemperature(model, baseUrl),
+    });
     if (first.ok) {
       return first.text;
     }
@@ -67,6 +86,7 @@ export async function kimiRespond(params: {
         apiKey,
         model: KIMI_CODE_FALLBACK_MODEL,
         messages,
+        temperature: getTemperature(KIMI_CODE_FALLBACK_MODEL, baseUrl),
       });
       if (fallback.ok) {
         return fallback.text;
@@ -91,8 +111,9 @@ async function callOpenAIChatCompletions(params: {
   apiKey: string;
   model: string;
   messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>;
+  temperature: number;
 }): Promise<{ ok: true; text: string } | { ok: false; status: number; message: string }> {
-  const { baseUrl, apiKey, model, messages } = params;
+  const { baseUrl, apiKey, model, messages, temperature } = params;
 
   const res = await fetch(`${baseUrl}/chat/completions`, {
     method: 'POST',
@@ -104,7 +125,7 @@ async function callOpenAIChatCompletions(params: {
     body: JSON.stringify({
       model,
       messages,
-      temperature: 0.6,
+      temperature,
       max_tokens: 800,
     }),
   });

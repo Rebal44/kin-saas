@@ -28,6 +28,7 @@ export async function GET() {
   const apiKey = getApiKey();
   const configuredBaseUrl = process.env.KIN_AI_API_URL || DEFAULT_KIMI_API_URL;
   const model = process.env.KIN_AI_MODEL || 'kimi-k2.5';
+  const temperature = model === 'kimi-k2.5' ? 1 : 0;
 
   if (!apiKey) {
     return Response.json(
@@ -59,7 +60,7 @@ export async function GET() {
             { role: 'user', content: 'Say "ok".' },
           ],
           max_tokens: 5,
-          temperature: 0,
+          temperature,
         }),
         cache: 'no-store',
       });
