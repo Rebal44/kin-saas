@@ -1,3 +1,5 @@
+import { executeToolByName, getOpenAIToolsSpec } from './tools';
+
 const DEFAULT_KIMI_API_URL = 'https://api.moonshot.ai/v1';
 const FALLBACK_KIMI_API_URL = 'https://api.moonshot.cn/v1';
 const KIMI_CODE_API_URL = 'https://api.kimi.com/coding/v1';
@@ -63,46 +65,45 @@ export async function kimiRespond(params: {
           '- Be direct and practical. Keep responses short unless the user asks for depth.',
           '- Do not use long meta explanations about AI capabilities.',
           '- If the user asks for real-time info you don’t have, ask them for the needed details or suggest a simple next step.',
+          '- Use available tools when they help (e.g., current weather or current time).',
         ].join('\n'),
     },
     ...(params.history || []),
     { role: 'user' as const, content: params.message },
   ];
 
-  // Moonshot/Kimi is OpenAI-compatible, but it typically supports the Chat Completions API.
+  // OpenAI-compatible Chat Completions + tool calling loop.
   let lastError: { status: number; message: string; baseUrl: string } | null = null;
   for (const baseUrl of baseUrls) {
-    // First attempt: configured model
-    const first = await callOpenAIChatCompletions({
+    const tools = getOpenAIToolsSpec();
+    const temperature = getTemperature(model, baseUrl);
+
+    const attempt = await runToolCallingLoop({
       baseUrl,
       apiKey,
       model,
       messages,
-      temperature: getTemperature(model, baseUrl),
+      tools,
+      temperature,
     });
-    if (first.ok) {
-      return first.text;
-    }
+    if (attempt.ok) return attempt.text;
 
-    const firstError = getErrorInfo(first);
-    lastError = { status: firstError.status, message: firstError.message, baseUrl };
-    if (firstError.status === 401) continue;
+    lastError = { status: attempt.status, message: attempt.message, baseUrl };
+    if (attempt.status === 401) continue;
 
-    // Kimi Code uses different model ids; if we got a model error, retry with a safe default.
-    if (firstError.status === 404 || /model/i.test(firstError.message)) {
-      const fallback = await callOpenAIChatCompletions({
+    // Kimi Code uses different model ids; retry with a safe default if it looks like a model issue.
+    if (attempt.status === 404 || /model/i.test(attempt.message)) {
+      const fallbackAttempt = await runToolCallingLoop({
         baseUrl,
         apiKey,
         model: KIMI_CODE_FALLBACK_MODEL,
         messages,
+        tools,
         temperature: getTemperature(KIMI_CODE_FALLBACK_MODEL, baseUrl),
       });
-      if (fallback.ok) {
-        return fallback.text;
-      }
-      const fallbackError = getErrorInfo(fallback);
-      lastError = { status: fallbackError.status, message: fallbackError.message, baseUrl };
-      if (fallbackError.status === 401) continue;
+      if (fallbackAttempt.ok) return fallbackAttempt.text;
+      lastError = { status: fallbackAttempt.status, message: fallbackAttempt.message, baseUrl };
+      if (fallbackAttempt.status === 401) continue;
     }
 
     return `Sorry, I had trouble processing that (${lastError.message}, HTTP ${lastError.status}).`;
@@ -115,47 +116,92 @@ export async function kimiRespond(params: {
   return 'No response from AI.';
 }
 
-async function callOpenAIChatCompletions(params: {
+type OpenAIMessage = {
+  role: 'system' | 'user' | 'assistant' | 'tool';
+  content?: string;
+  tool_call_id?: string;
+  name?: string;
+  tool_calls?: Array<{
+    id: string;
+    type: 'function';
+    function: { name: string; arguments: string };
+  }>;
+};
+
+async function runToolCallingLoop(params: {
   baseUrl: string;
   apiKey: string;
   model: string;
   messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>;
+  tools: any[];
   temperature: number;
 }): Promise<{ ok: true; text: string } | { ok: false; status: number; message: string }> {
-  const { baseUrl, apiKey, model, messages, temperature } = params;
+  const { baseUrl, apiKey, model, tools, temperature } = params;
+  const workingMessages: OpenAIMessage[] = params.messages.map((m) => ({
+    role: m.role,
+    content: m.content,
+  }));
 
-  const res = await fetch(`${baseUrl}/chat/completions`, {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      authorization: `Bearer ${apiKey}`,
-      'x-api-key': apiKey,
-    },
-    body: JSON.stringify({
-      model,
-      messages,
-      temperature,
-      max_tokens: 800,
-    }),
-  });
+  for (let i = 0; i < 4; i++) {
+    const res = await fetch(`${baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${apiKey}`,
+        'x-api-key': apiKey,
+      },
+      body: JSON.stringify({
+        model,
+        messages: workingMessages,
+        tools,
+        tool_choice: 'auto',
+        temperature,
+        max_tokens: 800,
+      }),
+    });
 
-  const data = (await res.json().catch(() => ({}))) as any;
-  if (!res.ok) {
-    const msg = data?.error?.message || data?.message || 'Kimi API error';
-    return { ok: false, status: res.status, message: msg };
+    const data = (await res.json().catch(() => ({}))) as any;
+    if (!res.ok) {
+      const msg = data?.error?.message || data?.message || 'Kimi API error';
+      return { ok: false, status: res.status, message: msg };
+    }
+
+    const message = (data?.choices?.[0]?.message || {}) as OpenAIMessage;
+    const toolCalls = (message as any)?.tool_calls as OpenAIMessage['tool_calls'];
+
+    if (Array.isArray(toolCalls) && toolCalls.length) {
+      // Append assistant message that requested tools.
+      workingMessages.push({
+        role: 'assistant',
+        content: message.content || '',
+        tool_calls: toolCalls,
+      });
+
+      for (const call of toolCalls) {
+        const name = call?.function?.name;
+        const rawArgs = call?.function?.arguments || '{}';
+        let args: any = {};
+        try {
+          args = JSON.parse(rawArgs);
+        } catch {
+          args = {};
+        }
+
+        const toolResult = await executeToolByName(String(name || ''), args);
+        workingMessages.push({
+          role: 'tool',
+          tool_call_id: call.id,
+          content: toolResult.content,
+        });
+      }
+
+      continue;
+    }
+
+    const text = message?.content;
+    if (typeof text === 'string' && text.trim()) return { ok: true, text };
+    return { ok: false, status: 502, message: 'No response text from AI' };
   }
 
-  const text = data?.choices?.[0]?.message?.content;
-  if (typeof text === 'string' && text.trim()) return { ok: true, text };
-
-  return { ok: false, status: 502, message: 'No response text from AI' };
-}
-
-function getErrorInfo(
-  result: { ok: true; text: string } | { ok: false; status: number; message: string }
-): { status: number; message: string } {
-  if (!('status' in result)) {
-    return { status: 500, message: 'Unknown error' };
-  }
-  return { status: result.status, message: result.message };
+  return { ok: false, status: 504, message: 'Tool loop exceeded' };
 }
