@@ -1,8 +1,9 @@
 import { getSupabase } from '@/lib/server/supabase';
-import { debitCredits } from '@/lib/server/credits';
+import { applyCreditTransaction, debitCredits, getCreditBalance, getMonthlyCredits } from '@/lib/server/credits';
 import { kimiRespond } from '@/lib/server/kimi';
 import { getRequestOrigin } from '@/lib/server/origin';
 import { parseStartCommand, telegramSendMessage } from '@/lib/server/telegram';
+import { getStripe } from '@/lib/server/stripe';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -61,7 +62,7 @@ export async function POST(request: Request) {
   // Subscription gate
   const { data: user } = await supabase
     .from('users')
-    .select('id, subscription_status')
+    .select('id, subscription_status, stripe_customer_id')
     .eq('id', connection.user_id)
     .maybeSingle();
 
@@ -76,17 +77,57 @@ export async function POST(request: Request) {
 
   // Credits gate
   const creditsPerMessage = Number(process.env.CREDITS_PER_MESSAGE || 1);
-  const debit = await debitCredits({
-    userId: user.id,
-    amount: creditsPerMessage,
-    reason: 'telegram_message',
-    reference: `telegram:inbound:${chatId}:${message.message_id}`,
-    metadata: { platform: 'telegram', chatId, messageId: message.message_id },
-  });
+  let debit: { ok: boolean; balance: number };
+  try {
+    debit = await debitCredits({
+      userId: user.id,
+      amount: creditsPerMessage,
+      reason: 'telegram_message',
+      reference: `telegram:inbound:${chatId}:${message.message_id}`,
+      metadata: { platform: 'telegram', chatId, messageId: message.message_id },
+    });
+  } catch (err: any) {
+    console.error('credits_debit_failed', err);
+    await telegramSendMessage(
+      chatId,
+      `We couldn’t verify your credits right now. Please try again in ~30 seconds.\n\nIf this keeps happening, open: ${origin}`
+    );
+    return new Response('ok', { status: 200 });
+  }
 
   if (!debit.ok) {
-    await telegramSendMessage(chatId, `You’re out of credits. Top up here: ${origin}/top-up`);
-    return new Response('ok', { status: 200 });
+    const recovered = await maybeRecoverMonthlyCredits({
+      userId: user.id,
+      stripeCustomerId: user.stripe_customer_id || undefined,
+    });
+
+    if (recovered) {
+      let retry: { ok: boolean; balance: number };
+      try {
+        retry = await debitCredits({
+          userId: user.id,
+          amount: creditsPerMessage,
+          reason: 'telegram_message',
+          reference: `telegram:inbound:${chatId}:${message.message_id}`,
+          metadata: { platform: 'telegram', chatId, messageId: message.message_id },
+        });
+      } catch (err: any) {
+        console.error('credits_debit_retry_failed', err);
+        await telegramSendMessage(
+          chatId,
+          `We couldn’t verify your credits right now. Please try again in ~30 seconds.\n\nIf this keeps happening, open: ${origin}`
+        );
+        return new Response('ok', { status: 200 });
+      }
+
+      if (!retry.ok) {
+        await telegramSendMessage(chatId, `You’re out of credits. Top up here: ${origin}/top-up`);
+        return new Response('ok', { status: 200 });
+      }
+    } else {
+      await telegramSendMessage(chatId, `You’re out of credits. Top up here: ${origin}/top-up`);
+      return new Response('ok', { status: 200 });
+    }
   }
 
   const text = extractTelegramText(message);
@@ -152,6 +193,76 @@ export async function POST(request: Request) {
   }
 
   return new Response('ok', { status: 200 });
+}
+
+async function maybeRecoverMonthlyCredits(params: { userId: string; stripeCustomerId?: string }): Promise<boolean> {
+  try {
+    const balance = await getCreditBalance(params.userId);
+    if (balance > 0) return true;
+
+    const supabase = getSupabase();
+
+    const { data: sub } = await supabase
+      .from('subscriptions')
+      .select('stripe_subscription_id, status, current_period_start, current_period_end, cancel_at_period_end, stripe_price_id')
+      .eq('user_id', params.userId)
+      .order('current_period_start', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (sub?.stripe_subscription_id && ['active', 'trialing'].includes(String(sub.status))) {
+      const periodStartSeconds = Math.floor(new Date(sub.current_period_start).getTime() / 1000);
+      await applyCreditTransaction({
+        userId: params.userId,
+        delta: getMonthlyCredits(),
+        reason: 'monthly_allowance',
+        reference: `stripe:subscription_start:${sub.stripe_subscription_id}:${periodStartSeconds}`,
+        metadata: { subscriptionId: sub.stripe_subscription_id, periodStart: periodStartSeconds, source: 'telegram_recover' },
+      });
+      return (await getCreditBalance(params.userId)) > 0;
+    }
+
+    if (!params.stripeCustomerId) return false;
+
+    const stripe = getStripe();
+    const list = await stripe.subscriptions.list({ customer: params.stripeCustomerId, limit: 5, status: 'all' });
+    const candidate = list.data.find((s) => ['active', 'trialing'].includes(s.status)) || null;
+    if (!candidate) return false;
+
+    await supabase.from('subscriptions').upsert(
+      {
+        user_id: params.userId,
+        stripe_subscription_id: candidate.id,
+        stripe_price_id: candidate.items.data[0]?.price?.id,
+        status: candidate.status,
+        current_period_start: new Date(candidate.current_period_start * 1000),
+        current_period_end: new Date(candidate.current_period_end * 1000),
+        cancel_at_period_end: candidate.cancel_at_period_end,
+      } as any,
+      { onConflict: 'stripe_subscription_id' }
+    );
+
+    await supabase
+      .from('users')
+      .update({
+        subscription_status: candidate.status,
+        trial_ends_at: candidate.trial_end ? new Date(candidate.trial_end * 1000) : null,
+      } as any)
+      .eq('id', params.userId);
+
+    await applyCreditTransaction({
+      userId: params.userId,
+      delta: getMonthlyCredits(),
+      reason: 'monthly_allowance',
+      reference: `stripe:subscription_start:${candidate.id}:${candidate.current_period_start}`,
+      metadata: { subscriptionId: candidate.id, periodStart: candidate.current_period_start, source: 'telegram_recover_stripe' },
+    });
+
+    return (await getCreditBalance(params.userId)) > 0;
+  } catch (err) {
+    console.error('maybeRecoverMonthlyCredits_failed', err);
+    return false;
+  }
 }
 
 async function handleTelegramStart(chatId: string, token: string, username?: string) {

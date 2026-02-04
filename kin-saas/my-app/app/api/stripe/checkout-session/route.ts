@@ -1,7 +1,7 @@
 import { getStripe } from '@/lib/server/stripe';
 import { getSupabase } from '@/lib/server/supabase';
 import { assertDatabaseReady, formatDbError } from '@/lib/server/dbErrors';
-import { applyCreditTransaction, getMonthlyCredits } from '@/lib/server/credits';
+import { applyCreditTransaction, ensureCreditBalanceRow, getMonthlyCredits } from '@/lib/server/credits';
 import { telegramGetMe } from '@/lib/server/telegram';
 
 export const runtime = 'nodejs';
@@ -58,8 +58,18 @@ export async function GET(request: Request) {
       );
     }
 
-    if (session.subscription && typeof session.subscription !== 'string') {
-      const subscription = session.subscription;
+    await ensureCreditBalanceRow(user.id);
+
+    const subscriptionId =
+      typeof session.subscription === 'string'
+        ? session.subscription
+        : session.subscription?.id || null;
+
+    if (subscriptionId) {
+      const subscription =
+        typeof session.subscription !== 'string' && session.subscription
+          ? session.subscription
+          : await stripe.subscriptions.retrieve(subscriptionId);
 
       await supabase.from('subscriptions').upsert(
         {

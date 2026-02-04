@@ -1,4 +1,5 @@
 import { getSupabase } from './supabase';
+import { formatDbError } from './dbErrors';
 
 const DEFAULT_MONTHLY_CREDITS = 10_000;
 
@@ -9,19 +10,25 @@ export function getMonthlyCredits(): number {
 
 export async function ensureCreditBalanceRow(userId: string) {
   const supabase = getSupabase();
-  await supabase
+  const { error } = await supabase
     .from('credit_balances')
     .upsert({ user_id: userId, balance: 0 } as any, { onConflict: 'user_id' });
+  if (error) {
+    throw new Error(formatDbError(error));
+  }
 }
 
 export async function getCreditBalance(userId: string): Promise<number> {
   const supabase = getSupabase();
   await ensureCreditBalanceRow(userId);
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('credit_balances')
     .select('balance')
     .eq('user_id', userId)
     .single();
+  if (error) {
+    throw new Error(formatDbError(error));
+  }
   return Number((data as any)?.balance || 0);
 }
 
@@ -38,31 +45,40 @@ export async function applyCreditTransaction(params: {
   await ensureCreditBalanceRow(userId);
 
   if (reference) {
-    const { data: existing } = await supabase
+    const { data: existing, error } = await supabase
       .from('credit_transactions')
       .select('id')
       .eq('user_id', userId)
       .eq('reference', reference)
       .maybeSingle();
+    if (error) {
+      throw new Error(formatDbError(error));
+    }
 
     if (existing) return;
   }
 
-  await supabase.from('credit_transactions').insert({
+  const { error: insertError } = await supabase.from('credit_transactions').insert({
     user_id: userId,
     delta,
     reason,
     reference,
     metadata: metadata || {},
   } as any);
+  if (insertError) {
+    throw new Error(formatDbError(insertError));
+  }
 
   const current = await getCreditBalance(userId);
   const next = Math.max(0, current + delta);
 
-  await supabase
+  const { error: updateError } = await supabase
     .from('credit_balances')
     .update({ balance: next } as any)
     .eq('user_id', userId);
+  if (updateError) {
+    throw new Error(formatDbError(updateError));
+  }
 }
 
 export async function debitCredits(params: {

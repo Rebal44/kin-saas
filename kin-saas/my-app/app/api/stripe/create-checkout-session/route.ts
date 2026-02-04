@@ -78,6 +78,10 @@ export async function POST(request: Request) {
       mode: 'subscription',
       success_url: `${origin}/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${origin}/cancel`,
+      metadata: {
+        userId: user.id,
+        email,
+      },
       subscription_data: {
         trial_period_days: 7,
         metadata: { source: 'kin-saas-checkout' },

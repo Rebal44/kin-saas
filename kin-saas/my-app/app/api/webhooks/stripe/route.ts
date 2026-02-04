@@ -102,8 +102,10 @@ async function handleCheckoutSessionCompleted(session: any) {
 
   if (session.mode !== 'subscription') return;
 
-  const customerId = session.customer;
-  const subscriptionId = session.subscription;
+  const customerId = typeof session.customer === 'string' ? session.customer : session.customer?.id;
+  const subscriptionId =
+    typeof session.subscription === 'string' ? session.subscription : session.subscription?.id;
+  if (!customerId || !subscriptionId) return;
 
   const { data: userByCustomer } = await supabase
     .from('users')
@@ -136,7 +138,7 @@ async function handleCheckoutSessionCompleted(session: any) {
   await supabase.from('subscriptions').upsert(
     {
       user_id: user.id,
-      stripe_subscription_id: subscriptionId,
+      stripe_subscription_id: subscription.id,
       stripe_price_id: subscription.items.data[0].price.id,
       status: subscription.status,
       current_period_start: new Date(subscription.current_period_start * 1000),
