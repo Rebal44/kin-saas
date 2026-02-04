@@ -42,7 +42,8 @@ export async function openclawRespond(params: {
     { role: 'user' as const, content: params.message },
   ];
 
-  const sessionKey = params.sessionKey || params.userId || undefined;
+  // Stable routing: prefer userId so reconnects keep the same agent session.
+  const sessionKey = params.userId || params.sessionKey || undefined;
 
   const res = await fetch(`${baseUrl}/v1/chat/completions`, {
     method: 'POST',
@@ -72,4 +73,3 @@ export async function openclawRespond(params: {
 
   return 'No response from AI.';
 }
-
