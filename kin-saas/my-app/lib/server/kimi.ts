@@ -1,15 +1,29 @@
 const DEFAULT_KIMI_API_URL = 'https://api.moonshot.ai/v1';
 
+function normalizeApiKey(raw: string): string {
+  let key = (raw || '').trim();
+
+  // Some UIs/docs include "Bearer ..." or wrap in quotes; normalize for reliability.
+  if (/^bearer\s+/i.test(key)) key = key.replace(/^bearer\s+/i, '').trim();
+  if ((key.startsWith('"') && key.endsWith('"')) || (key.startsWith("'") && key.endsWith("'"))) {
+    key = key.slice(1, -1).trim();
+  }
+
+  // Remove accidental newlines.
+  key = key.replace(/[\r\n]/g, '').trim();
+  return key;
+}
+
 export async function kimiRespond(params: {
   message: string;
   history?: Array<{ role: 'user' | 'assistant'; content: string }>;
 }): Promise<string> {
-  const apiKey = (
+  const apiKey = normalizeApiKey(
     process.env.KIN_AI_API_KEY ||
-    process.env.MOONSHOT_API_KEY ||
-    process.env.KIMI_API_KEY ||
+      process.env.MOONSHOT_API_KEY ||
+      process.env.KIMI_API_KEY ||
     ''
-  ).trim();
+  );
   const model = process.env.KIN_AI_MODEL || 'kimi-k2.5';
   const baseUrl = process.env.KIN_AI_API_URL || DEFAULT_KIMI_API_URL;
 

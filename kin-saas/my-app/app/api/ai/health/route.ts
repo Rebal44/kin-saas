@@ -4,12 +4,21 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 function getApiKey() {
-  return (
+  const raw =
+    (
     process.env.KIN_AI_API_KEY ||
     process.env.MOONSHOT_API_KEY ||
     process.env.KIMI_API_KEY ||
     ''
-  ).trim();
+    ) || '';
+
+  let key = raw.trim();
+  if (/^bearer\s+/i.test(key)) key = key.replace(/^bearer\s+/i, '').trim();
+  if ((key.startsWith('"') && key.endsWith('"')) || (key.startsWith("'") && key.endsWith("'"))) {
+    key = key.slice(1, -1).trim();
+  }
+  key = key.replace(/[\r\n]/g, '').trim();
+  return key;
 }
 
 export async function GET() {
@@ -25,11 +34,22 @@ export async function GET() {
   }
 
   try {
-    const res = await fetch(`${baseUrl}/models`, {
+    const res = await fetch(`${baseUrl}/chat/completions`, {
+      method: 'POST',
       headers: {
+        'content-type': 'application/json',
         authorization: `Bearer ${apiKey}`,
         'x-api-key': apiKey,
       },
+      body: JSON.stringify({
+        model,
+        messages: [
+          { role: 'system', content: 'You are a helpful assistant.' },
+          { role: 'user', content: 'Say "ok".' },
+        ],
+        max_tokens: 5,
+        temperature: 0,
+      }),
       cache: 'no-store',
     });
 
@@ -62,4 +82,3 @@ export async function GET() {
     );
   }
 }
-
