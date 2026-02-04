@@ -1,4 +1,4 @@
-import { executeToolByName, getOpenAIToolsSpec } from './tools';
+import { executeToolByName, getChatToolsSpec } from './tools';
 
 const DEFAULT_KIMI_API_URL = 'https://api.moonshot.ai/v1';
 const FALLBACK_KIMI_API_URL = 'https://api.moonshot.cn/v1';
@@ -72,10 +72,10 @@ export async function kimiRespond(params: {
     { role: 'user' as const, content: params.message },
   ];
 
-  // OpenAI-compatible Chat Completions + tool calling loop.
+  // Chat Completions + tool calling loop.
   let lastError: { status: number; message: string; baseUrl: string } | null = null;
   for (const baseUrl of baseUrls) {
-    const tools = getOpenAIToolsSpec();
+    const tools = getChatToolsSpec();
     const temperature = getTemperature(model, baseUrl);
 
     const attempt = await runToolCallingLoop({
@@ -116,7 +116,7 @@ export async function kimiRespond(params: {
   return 'No response from AI.';
 }
 
-type OpenAIMessage = {
+type ChatMessage = {
   role: 'system' | 'user' | 'assistant' | 'tool';
   content?: string;
   tool_call_id?: string;
@@ -137,7 +137,7 @@ async function runToolCallingLoop(params: {
   temperature: number;
 }): Promise<{ ok: true; text: string } | { ok: false; status: number; message: string }> {
   const { baseUrl, apiKey, model, tools, temperature } = params;
-  const workingMessages: OpenAIMessage[] = params.messages.map((m) => ({
+  const workingMessages: ChatMessage[] = params.messages.map((m) => ({
     role: m.role,
     content: m.content,
   }));
@@ -166,8 +166,8 @@ async function runToolCallingLoop(params: {
       return { ok: false, status: res.status, message: msg };
     }
 
-    const message = (data?.choices?.[0]?.message || {}) as OpenAIMessage;
-    const toolCalls = (message as any)?.tool_calls as OpenAIMessage['tool_calls'];
+    const message = (data?.choices?.[0]?.message || {}) as ChatMessage;
+    const toolCalls = (message as any)?.tool_calls as ChatMessage['tool_calls'];
 
     if (Array.isArray(toolCalls) && toolCalls.length) {
       // Append assistant message that requested tools.

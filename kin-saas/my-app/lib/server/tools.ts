@@ -141,7 +141,7 @@ export const TOOLS: ToolDefinition[] = [
   },
 ];
 
-export function getOpenAIToolsSpec() {
+export function getChatToolsSpec() {
   return TOOLS.map((t) => ({
     type: 'function',
     function: {

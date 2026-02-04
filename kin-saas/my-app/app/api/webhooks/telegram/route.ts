@@ -1,6 +1,7 @@
 import { getSupabase } from '@/lib/server/supabase';
 import { applyCreditTransaction, debitCredits, getCreditBalance, getMonthlyCredits } from '@/lib/server/credits';
 import { agentRespond } from '@/lib/server/agent';
+import { sanitizeBotReply } from '@/lib/server/brand';
 import { getRequestOrigin } from '@/lib/server/origin';
 import { parseStartCommand, telegramSendMessage } from '@/lib/server/telegram';
 import { getStripe } from '@/lib/server/stripe';
@@ -93,10 +94,32 @@ export async function POST(request: Request) {
     await telegramSendMessage(chatId, `Top up: ${origin}/top-up`);
     return new Response('ok', { status: 200 });
   }
+  if (command === 'account') {
+    await telegramSendMessage(chatId, `Account: ${origin}/account`);
+    return new Response('ok', { status: 200 });
+  }
+  if (command === 'manage' || command === 'subscription' || command === 'cancel') {
+    if (!user.stripe_customer_id) {
+      await telegramSendMessage(chatId, `Manage subscription: ${origin}/account`);
+      return new Response('ok', { status: 200 });
+    }
+
+    try {
+      const stripe = getStripe();
+      const session = await stripe.billingPortal.sessions.create({
+        customer: user.stripe_customer_id,
+        return_url: `${origin}/account`,
+      });
+      await telegramSendMessage(chatId, `Manage subscription: ${session.url}`);
+    } catch {
+      await telegramSendMessage(chatId, `Couldn’t open the subscription portal right now. Try again in a minute.`);
+    }
+    return new Response('ok', { status: 200 });
+  }
   if (command === 'help') {
     await telegramSendMessage(
       chatId,
-      `Commands:\n/balance — show credits\n/topup — buy more credits\n\nOr just send a message to chat with Kin.`
+      `Commands:\n/balance — show credits\n/topup — buy more credits\n/account — account page\n/manage — manage subscription\n\nOr just send a message to chat with Kin.`
     );
     return new Response('ok', { status: 200 });
   }
@@ -191,12 +214,13 @@ export async function POST(request: Request) {
   }
 
   const history = conversationId ? await getConversationHistory(conversationId, 10) : [];
-  const reply = await agentRespond({
+  const rawReply = await agentRespond({
     message: text,
     history,
     userId: user.id,
     sessionKey: connection.id,
   });
+  const reply = sanitizeBotReply({ userText: text, assistantText: rawReply });
 
   const sentOk = await telegramSendMessage(chatId, reply);
 

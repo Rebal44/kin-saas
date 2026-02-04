@@ -3,6 +3,16 @@ import crypto from 'crypto';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
+function safeUrlHost(value: string): string | null {
+  const trimmed = (value || '').trim();
+  if (!trimmed) return null;
+  try {
+    return new URL(trimmed).host;
+  } catch {
+    return null;
+  }
+}
+
 function normalizeApiKey(raw: string): string {
   let key = (raw || '').trim();
   if (/^bearer\s+/i.test(key)) key = key.replace(/^bearer\s+/i, '').trim();
@@ -35,6 +45,10 @@ export async function GET() {
     ? crypto.createHash('sha256').update(key).digest('hex').slice(0, 12)
     : null;
 
+  const openclawGatewayUrl = (process.env.OPENCLAW_GATEWAY_URL || '').trim();
+  const openclawToken = (process.env.OPENCLAW_GATEWAY_TOKEN || '').trim();
+  const openclawAgentId = (process.env.OPENCLAW_AGENT_ID || 'main').trim();
+
   return Response.json(
     {
       ok: true,
@@ -45,8 +59,10 @@ export async function GET() {
       keyFingerprint: fingerprint,
       baseUrl: process.env.KIN_AI_API_URL || 'https://api.moonshot.ai/v1',
       model: process.env.KIN_AI_MODEL || 'kimi-k2.5',
+      openclawEnabled: Boolean(openclawGatewayUrl && openclawToken),
+      openclawGatewayHost: safeUrlHost(openclawGatewayUrl),
+      openclawAgentId,
     },
     { status: 200 }
   );
 }
-
