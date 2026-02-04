@@ -1,5 +1,7 @@
 const DEFAULT_KIMI_API_URL = 'https://api.moonshot.ai/v1';
 const FALLBACK_KIMI_API_URL = 'https://api.moonshot.cn/v1';
+const KIMI_CODE_API_URL = 'https://api.kimi.com/coding/v1';
+const KIMI_CODE_FALLBACK_MODEL = 'kimi-for-coding';
 
 function normalizeApiKey(raw: string): string {
   let key = (raw || '').trim();
@@ -28,7 +30,7 @@ export async function kimiRespond(params: {
   const model = process.env.KIN_AI_MODEL || 'kimi-k2.5';
   const configuredBaseUrl = process.env.KIN_AI_API_URL || DEFAULT_KIMI_API_URL;
   const baseUrls = Array.from(
-    new Set([configuredBaseUrl, configuredBaseUrl === DEFAULT_KIMI_API_URL ? FALLBACK_KIMI_API_URL : DEFAULT_KIMI_API_URL])
+    new Set([configuredBaseUrl, DEFAULT_KIMI_API_URL, FALLBACK_KIMI_API_URL, KIMI_CODE_API_URL])
   );
 
   if (!apiKey) {
@@ -48,33 +50,27 @@ export async function kimiRespond(params: {
   // Moonshot/Kimi is OpenAI-compatible, but it typically supports the Chat Completions API.
   let lastError: { status: number; message: string; baseUrl: string } | null = null;
   for (const baseUrl of baseUrls) {
-    const res = await fetch(`${baseUrl}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        // Moonshot/Kimi is OpenAI-compatible; different gateways sometimes expect different headers.
-        authorization: `Bearer ${apiKey}`,
-        'x-api-key': apiKey,
-      },
-      body: JSON.stringify({
-        model,
-        messages,
-        temperature: 0.6,
-        max_tokens: 800,
-      }),
-    });
+    // First attempt: configured model
+    const first = await callOpenAIChatCompletions({ baseUrl, apiKey, model, messages });
+    if (first.ok) return first.text;
 
-    const data = (await res.json().catch(() => ({}))) as any;
-    if (!res.ok) {
-      const msg = data?.error?.message || 'Kimi API error';
-      lastError = { status: res.status, message: msg, baseUrl };
-      // If this base URL failed for auth, try the fallback before giving up.
-      if (res.status === 401) continue;
-      return `Sorry, I had trouble processing that (${msg}, HTTP ${res.status}).`;
+    lastError = { status: first.status, message: first.message, baseUrl };
+    if (first.status === 401) continue;
+
+    // Kimi Code uses different model ids; if we got a model error, retry with a safe default.
+    if (first.status === 404 || /model/i.test(first.message)) {
+      const fallback = await callOpenAIChatCompletions({
+        baseUrl,
+        apiKey,
+        model: KIMI_CODE_FALLBACK_MODEL,
+        messages,
+      });
+      if (fallback.ok) return fallback.text;
+      lastError = { status: fallback.status, message: fallback.message, baseUrl };
+      if (fallback.status === 401) continue;
     }
 
-    const text = data?.choices?.[0]?.message?.content;
-    if (typeof text === 'string' && text.trim()) return text;
+    return `Sorry, I had trouble processing that (${lastError.message}, HTTP ${lastError.status}).`;
   }
 
   if (lastError) {
@@ -82,4 +78,39 @@ export async function kimiRespond(params: {
   }
 
   return 'No response from AI.';
+}
+
+async function callOpenAIChatCompletions(params: {
+  baseUrl: string;
+  apiKey: string;
+  model: string;
+  messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>;
+}): Promise<{ ok: true; text: string } | { ok: false; status: number; message: string }> {
+  const { baseUrl, apiKey, model, messages } = params;
+
+  const res = await fetch(`${baseUrl}/chat/completions`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      authorization: `Bearer ${apiKey}`,
+      'x-api-key': apiKey,
+    },
+    body: JSON.stringify({
+      model,
+      messages,
+      temperature: 0.6,
+      max_tokens: 800,
+    }),
+  });
+
+  const data = (await res.json().catch(() => ({}))) as any;
+  if (!res.ok) {
+    const msg = data?.error?.message || data?.message || 'Kimi API error';
+    return { ok: false, status: res.status, message: msg };
+  }
+
+  const text = data?.choices?.[0]?.message?.content;
+  if (typeof text === 'string' && text.trim()) return { ok: true, text };
+
+  return { ok: false, status: 502, message: 'No response text from AI' };
 }
