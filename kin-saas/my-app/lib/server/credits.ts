@@ -34,7 +34,50 @@ export async function getCreditBalance(userId: string): Promise<number> {
   if (error) {
     throw new Error(formatDbError(error));
   }
-  return Number((data as any)?.balance || 0);
+
+  const stored = Number((data as any)?.balance || 0);
+  if (stored > 0) return stored;
+
+  // If balance is 0 but there are ledger rows, reconcile (heals earlier buggy deployments
+  // that accidentally overwrote `credit_balances.balance` to 0).
+  const { data: anyTx, error: anyTxError } = await supabase
+    .from('credit_transactions')
+    .select('id')
+    .eq('user_id', userId)
+    .limit(1)
+    .maybeSingle();
+  if (anyTxError) {
+    throw new Error(formatDbError(anyTxError));
+  }
+  if (!anyTx) return stored;
+
+  return await reconcileCreditBalance(userId);
+}
+
+export async function reconcileCreditBalance(userId: string): Promise<number> {
+  const supabase = getSupabase();
+  await ensureCreditBalanceRow(userId);
+
+  const { data: rows, error } = await supabase
+    .from('credit_transactions')
+    .select('delta')
+    .eq('user_id', userId);
+  if (error) {
+    throw new Error(formatDbError(error));
+  }
+
+  const sum = (rows || []).reduce((acc: number, row: any) => acc + Number(row?.delta || 0), 0);
+  const next = Math.max(0, sum);
+
+  const { error: updateError } = await supabase
+    .from('credit_balances')
+    .update({ balance: next } as any)
+    .eq('user_id', userId);
+  if (updateError) {
+    throw new Error(formatDbError(updateError));
+  }
+
+  return next;
 }
 
 export async function applyCreditTransaction(params: {
@@ -60,8 +103,13 @@ export async function applyCreditTransaction(params: {
       throw new Error(formatDbError(error));
     }
 
-    if (existing) return;
+    if (existing) {
+      await reconcileCreditBalance(userId);
+      return;
+    }
   }
+
+  const current = await getCreditBalance(userId);
 
   const { error: insertError } = await supabase.from('credit_transactions').insert({
     user_id: userId,
@@ -74,7 +122,6 @@ export async function applyCreditTransaction(params: {
     throw new Error(formatDbError(insertError));
   }
 
-  const current = await getCreditBalance(userId);
   const next = Math.max(0, current + delta);
 
   const { error: updateError } = await supabase
