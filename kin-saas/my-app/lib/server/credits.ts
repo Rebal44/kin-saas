@@ -10,9 +10,14 @@ export function getMonthlyCredits(): number {
 
 export async function ensureCreditBalanceRow(userId: string) {
   const supabase = getSupabase();
+  // IMPORTANT: do NOT overwrite existing balances to 0.
+  // We only want to create the row if it doesn't exist.
   const { error } = await supabase
     .from('credit_balances')
-    .upsert({ user_id: userId, balance: 0 } as any, { onConflict: 'user_id' });
+    .upsert(
+      { user_id: userId, balance: 0 } as any,
+      { onConflict: 'user_id', ignoreDuplicates: true } as any
+    );
   if (error) {
     throw new Error(formatDbError(error));
   }
