@@ -12,12 +12,18 @@ export async function kimiRespond(params: {
     return 'Kin is not configured yet. Please contact support.';
   }
 
-  const input = [
+  const messages = [
+    {
+      role: 'system' as const,
+      content:
+        'You are Kin, the "ChatGPT for Agents." Be concise, clear, and helpful. If a user asks for actions you cannot perform, explain what you can do instead.',
+    },
     ...(params.history || []),
     { role: 'user' as const, content: params.message },
   ];
 
-  const res = await fetch(`${baseUrl}/responses`, {
+  // Moonshot/Kimi is OpenAI-compatible, but it typically supports the Chat Completions API.
+  const res = await fetch(`${baseUrl}/chat/completions`, {
     method: 'POST',
     headers: {
       'content-type': 'application/json',
@@ -25,12 +31,9 @@ export async function kimiRespond(params: {
     },
     body: JSON.stringify({
       model,
-      input,
-      instructions:
-        'You are Kin, the "ChatGPT for Agents." Be concise, clear, and helpful. If a user asks for actions you cannot perform, explain what you can do instead.',
+      messages,
       temperature: 0.6,
-      max_output_tokens: 800,
-      store: false,
+      max_tokens: 800,
     }),
   });
 
@@ -40,16 +43,8 @@ export async function kimiRespond(params: {
     return `Sorry, I had trouble processing that (${msg}).`;
   }
 
-  if (typeof data?.output_text === 'string') return data.output_text;
-
-  const output = data?.output || [];
-  for (const item of output) {
-    if (item?.type === 'message' && Array.isArray(item.content)) {
-      const textPart = item.content.find((c: any) => c.type === 'output_text');
-      if (textPart?.text) return textPart.text;
-    }
-  }
+  const text = data?.choices?.[0]?.message?.content;
+  if (typeof text === 'string' && text.trim()) return text;
 
   return 'No response from AI.';
 }
-

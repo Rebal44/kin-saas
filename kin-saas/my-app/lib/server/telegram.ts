@@ -28,7 +28,6 @@ export async function telegramSendMessage(chatId: string, text: string): Promise
       body: JSON.stringify({
         chat_id: chatId,
         text,
-        parse_mode: 'HTML',
       }),
     });
     const data = (await res.json()) as TelegramApiResponse<unknown>;
@@ -45,4 +44,3 @@ export function parseStartCommand(text?: string) {
   const param = match[1]?.trim();
   return { isCommand: true as const, param: param || undefined };
 }
-
