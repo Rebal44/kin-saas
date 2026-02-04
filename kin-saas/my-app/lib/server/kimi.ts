@@ -1,4 +1,5 @@
 const DEFAULT_KIMI_API_URL = 'https://api.moonshot.ai/v1';
+const FALLBACK_KIMI_API_URL = 'https://api.moonshot.cn/v1';
 
 function normalizeApiKey(raw: string): string {
   let key = (raw || '').trim();
@@ -25,7 +26,10 @@ export async function kimiRespond(params: {
     ''
   );
   const model = process.env.KIN_AI_MODEL || 'kimi-k2.5';
-  const baseUrl = process.env.KIN_AI_API_URL || DEFAULT_KIMI_API_URL;
+  const configuredBaseUrl = process.env.KIN_AI_API_URL || DEFAULT_KIMI_API_URL;
+  const baseUrls = Array.from(
+    new Set([configuredBaseUrl, configuredBaseUrl === DEFAULT_KIMI_API_URL ? FALLBACK_KIMI_API_URL : DEFAULT_KIMI_API_URL])
+  );
 
   if (!apiKey) {
     return 'Kin is not configured yet. Please contact support.';
@@ -42,30 +46,40 @@ export async function kimiRespond(params: {
   ];
 
   // Moonshot/Kimi is OpenAI-compatible, but it typically supports the Chat Completions API.
-  const res = await fetch(`${baseUrl}/chat/completions`, {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      // Moonshot/Kimi is OpenAI-compatible; different gateways sometimes expect different headers.
-      authorization: `Bearer ${apiKey}`,
-      'x-api-key': apiKey,
-    },
-    body: JSON.stringify({
-      model,
-      messages,
-      temperature: 0.6,
-      max_tokens: 800,
-    }),
-  });
+  let lastError: { status: number; message: string; baseUrl: string } | null = null;
+  for (const baseUrl of baseUrls) {
+    const res = await fetch(`${baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        // Moonshot/Kimi is OpenAI-compatible; different gateways sometimes expect different headers.
+        authorization: `Bearer ${apiKey}`,
+        'x-api-key': apiKey,
+      },
+      body: JSON.stringify({
+        model,
+        messages,
+        temperature: 0.6,
+        max_tokens: 800,
+      }),
+    });
 
-  const data = (await res.json()) as any;
-  if (!res.ok) {
-    const msg = data?.error?.message || 'Kimi API error';
-    return `Sorry, I had trouble processing that (${msg}, HTTP ${res.status}).`;
+    const data = (await res.json().catch(() => ({}))) as any;
+    if (!res.ok) {
+      const msg = data?.error?.message || 'Kimi API error';
+      lastError = { status: res.status, message: msg, baseUrl };
+      // If this base URL failed for auth, try the fallback before giving up.
+      if (res.status === 401) continue;
+      return `Sorry, I had trouble processing that (${msg}, HTTP ${res.status}).`;
+    }
+
+    const text = data?.choices?.[0]?.message?.content;
+    if (typeof text === 'string' && text.trim()) return text;
   }
 
-  const text = data?.choices?.[0]?.message?.content;
-  if (typeof text === 'string' && text.trim()) return text;
+  if (lastError) {
+    return `Sorry, I had trouble processing that (${lastError.message}, HTTP ${lastError.status}).`;
+  }
 
   return 'No response from AI.';
 }
