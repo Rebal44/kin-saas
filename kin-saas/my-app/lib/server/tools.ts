@@ -161,5 +161,6 @@ export async function executeToolByName(
 
   const result = await tool.execute(args);
   if (result.ok) return { ok: true, content: result.content };
-  return { ok: false, content: safeJsonStringify({ ok: false, error: result.error }) };
+  const failed = result as { ok: false; error: string };
+  return { ok: false, content: safeJsonStringify({ ok: false, error: failed.error }) };
 }
