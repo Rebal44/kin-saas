@@ -88,11 +88,12 @@ export async function kimiRespond(params: {
     });
     if (attempt.ok) return attempt.text;
 
-    lastError = { status: attempt.status, message: attempt.message, baseUrl };
-    if (attempt.status === 401) continue;
+    const failed = attempt as { ok: false; status: number; message: string };
+    lastError = { status: failed.status, message: failed.message, baseUrl };
+    if (failed.status === 401) continue;
 
     // Kimi Code uses different model ids; retry with a safe default if it looks like a model issue.
-    if (attempt.status === 404 || /model/i.test(attempt.message)) {
+    if (failed.status === 404 || /model/i.test(failed.message)) {
       const fallbackAttempt = await runToolCallingLoop({
         baseUrl,
         apiKey,
@@ -102,8 +103,9 @@ export async function kimiRespond(params: {
         temperature: getTemperature(KIMI_CODE_FALLBACK_MODEL, baseUrl),
       });
       if (fallbackAttempt.ok) return fallbackAttempt.text;
-      lastError = { status: fallbackAttempt.status, message: fallbackAttempt.message, baseUrl };
-      if (fallbackAttempt.status === 401) continue;
+      const fallbackFailed = fallbackAttempt as { ok: false; status: number; message: string };
+      lastError = { status: fallbackFailed.status, message: fallbackFailed.message, baseUrl };
+      if (fallbackFailed.status === 401) continue;
     }
 
     return `Sorry, I had trouble processing that (${lastError.message}, HTTP ${lastError.status}).`;
