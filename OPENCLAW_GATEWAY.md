@@ -27,10 +27,12 @@ To run OpenClaw for real users, you need always-on compute (a VPS). The cheapest
 
 1. Create an Ubuntu 24.04 VPS (any provider).
 2. SSH into it.
-3. Run this repo script on the VPS:
+3. (Recommended) Point a subdomain to the VPS IP (DNS A record), e.g. `openclaw.yourdomain.com`.
+4. Run this repo script on the VPS:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Rebal44/kin-saas/main/scripts/openclaw-gateway/setup-ubuntu.sh | bash
+OPENCLAW_DOMAIN=openclaw.yourdomain.com \
+  curl -fsSL https://raw.githubusercontent.com/Rebal44/kin-saas/main/scripts/openclaw-gateway/setup-ubuntu.sh | bash
 ```
 
 At the end it prints:
@@ -57,4 +59,3 @@ The setup script intentionally starts with a restricted tool policy:
 - Denies: shell execution and filesystem modification tools
 
 This is the baseline you want for SaaS users. If you later enable browser automation or exec, you must also enable sandboxing and be intentional about what users are allowed to do.
-

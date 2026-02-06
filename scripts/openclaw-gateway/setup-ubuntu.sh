@@ -51,10 +51,33 @@ echo "Configuring Gateway..."
 
 GATEWAY_PORT="${OPENCLAW_GATEWAY_PORT:-18789}"
 TOKEN="${OPENCLAW_GATEWAY_TOKEN:-$(openssl rand -hex 32)}"
+DOMAIN="${OPENCLAW_DOMAIN:-}"
 
-# Bind publicly so Vercel can call it.
-openclaw config set gateway.bind lan
-openclaw config set gateway.port "$GATEWAY_PORT"
+if [[ -n "${DOMAIN}" ]]; then
+  echo "Domain provided: ${DOMAIN}"
+  echo "Installing Caddy (HTTPS reverse proxy)..."
+  sudo apt-get install -y debian-keyring debian-archive-keyring apt-transport-https
+  curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | sudo gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+  curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | sudo tee /etc/apt/sources.list.d/caddy-stable.list >/dev/null
+  sudo apt-get update -y
+  sudo apt-get install -y caddy
+
+  # Keep OpenClaw private on the box; expose only via Caddy.
+  openclaw config set gateway.bind loopback
+  openclaw config set gateway.port "$GATEWAY_PORT"
+
+  echo "Writing Caddy config..."
+  sudo tee /etc/caddy/Caddyfile >/dev/null <<EOF
+${DOMAIN} {
+  reverse_proxy 127.0.0.1:${GATEWAY_PORT}
+}
+EOF
+  sudo systemctl enable --now caddy
+else
+  # Quick test mode (no domain / no TLS). Exposes the port directly.
+  openclaw config set gateway.bind lan
+  openclaw config set gateway.port "$GATEWAY_PORT"
+fi
 
 # Require token auth.
 openclaw config set gateway.auth.mode token
@@ -87,10 +110,17 @@ echo ""
 echo "Done."
 echo ""
 echo "Use these in Vercel:"
-echo "OPENCLAW_GATEWAY_URL=http://${PUBLIC_IP}:${GATEWAY_PORT}"
+if [[ -n "${DOMAIN}" ]]; then
+  echo "OPENCLAW_GATEWAY_URL=https://${DOMAIN}"
+else
+  echo "OPENCLAW_GATEWAY_URL=http://${PUBLIC_IP}:${GATEWAY_PORT}"
+fi
 echo "OPENCLAW_GATEWAY_TOKEN=${TOKEN}"
 echo "OPENCLAW_AGENT_ID=main"
 echo ""
 echo "Health check URL:"
-echo "http://${PUBLIC_IP}:${GATEWAY_PORT}/v1/chat/completions"
-
+if [[ -n "${DOMAIN}" ]]; then
+  echo "https://${DOMAIN}/v1/chat/completions"
+else
+  echo "http://${PUBLIC_IP}:${GATEWAY_PORT}/v1/chat/completions"
+fi
