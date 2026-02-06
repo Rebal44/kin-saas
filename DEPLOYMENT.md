@@ -119,3 +119,4 @@ If you run an OpenClaw Gateway separately, set these Vercel env vars:
 
 When set, Kin routes Telegram messages through OpenClaw.
 
+Setup guide: `OPENCLAW_GATEWAY.md`
