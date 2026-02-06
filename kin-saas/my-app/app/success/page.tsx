@@ -6,8 +6,8 @@ type PageProps = {
   searchParams?: Record<string, string | string[] | undefined>;
 };
 
-function getBaseUrl() {
-  const h = headers();
+async function getBaseUrl() {
+  const h = await headers();
   const proto = h.get("x-forwarded-proto") || "https";
   const host = h.get("x-forwarded-host") || h.get("host") || "";
   if (!host) return "http://localhost:3000";
@@ -44,7 +44,7 @@ export default async function SuccessPage({ searchParams }: PageProps) {
     );
   }
 
-  const baseUrl = getBaseUrl();
+  const baseUrl = await getBaseUrl();
   const res = await fetch(
     `${baseUrl}/api/stripe/checkout-session?sessionId=${encodeURIComponent(sessionId)}`,
     { cache: "no-store" }
